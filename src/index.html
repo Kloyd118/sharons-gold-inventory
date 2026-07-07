@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sharons Gold Inventory</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
@@ -54,7 +55,78 @@
         </section>
 
         <section id="dashboard-view" class="view hidden">
-          <h1>Dashboard</h1>
+          <div class="view-header">
+            <div>
+              <h1>Dashboard</h1>
+              <p class="view-subtitle">Sales performance at a glance</p>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="kpi-card">
+              <p class="kpi-title">Today</p>
+              <p class="kpi-count" id="kpi-today-count">0 items sold</p>
+              <div class="kpi-metric-row"><span>Revenue</span><strong id="kpi-today-revenue">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Cost</span><strong id="kpi-today-cost">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Profit</span><strong id="kpi-today-profit">0.00</strong></div>
+            </div>
+
+            <div class="kpi-card">
+              <p class="kpi-title">This Week</p>
+              <p class="kpi-count" id="kpi-week-count">0 items sold</p>
+              <div class="kpi-metric-row"><span>Revenue</span><strong id="kpi-week-revenue">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Cost</span><strong id="kpi-week-cost">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Profit</span><strong id="kpi-week-profit">0.00</strong></div>
+            </div>
+
+            <div class="kpi-card">
+              <p class="kpi-title">This Month</p>
+              <p class="kpi-count" id="kpi-month-count">0 items sold</p>
+              <div class="kpi-metric-row"><span>Revenue</span><strong id="kpi-month-revenue">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Cost</span><strong id="kpi-month-cost">0.00</strong></div>
+              <div class="kpi-metric-row"><span>Profit</span><strong id="kpi-month-profit">0.00</strong></div>
+            </div>
+
+            <div class="kpi-card kpi-card-highlight">
+              <p class="kpi-title">Best Selling Product</p>
+              <p class="best-seller-name" id="kpi-best-seller-name">—</p>
+              <p class="best-seller-sub" id="kpi-best-seller-sub">No sales recorded yet</p>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Revenue — Last 7 Days</p>
+            <div class="chart-wrapper">
+              <canvas id="sales-trend-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="view-header">
+            <div>
+              <h2 class="section-subheading">Sold Products</h2>
+              <p class="view-subtitle">Every item marked as sold</p>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="sold-table">
+              <thead>
+                <tr>
+                  <th>Control No.</th>
+                  <th>Product Type</th>
+                  <th>Price</th>
+                  <th>Cost</th>
+                  <th>Profit</th>
+                  <th>Date Added</th>
+                  <th>Date Sold</th>
+                </tr>
+              </thead>
+              <tbody id="sold-list">
+                <!-- rows injected by main.js -->
+              </tbody>
+            </table>
+            <p id="sold-empty-state" class="empty-state hidden">No products sold yet.</p>
+          </div>
         </section>
 
         <section id="inventory-view" class="view">
@@ -69,14 +141,19 @@
             </div>
           </div>
 
+          <div class="summary-panel" id="product-summary">
+            <!-- product type summary chips injected by main.js -->
+          </div>
+
           <div class="table-wrapper">
             <table id="inventory-table">
               <thead>
                 <tr>
                   <th data-sort="control_number">Control No. <span class="sort-icon"></span></th>
                   <th data-sort="product_type">Product Type <span class="sort-icon"></span></th>
-                  <th data-sort="quantity">Quantity <span class="sort-icon"></span></th>
                   <th data-sort="price">Price <span class="sort-icon"></span></th>
+                  <th data-sort="cost">Cost <span class="sort-icon"></span></th>
+                  <th data-sort="profit">Profit <span class="sort-icon"></span></th>
                   <th data-sort="date">Date Added <span class="sort-icon"></span></th>
                   <th>Actions</th>
                 </tr>
@@ -136,13 +213,19 @@
             </optgroup>
           </select>
 
-          <label for="item-qty">Quantity</label>
-          <input id="item-qty" type="number" min="1" placeholder="e.g. 5" required />
+          <div id="qty-field-wrapper">
+            <label for="item-qty">Quantity to Add</label>
+            <input id="item-qty" type="number" min="1" placeholder="e.g. 5" value="1" />
+            <p class="form-note">Each unit gets its own control number, but shares the same product type, price, cost, and profit.</p>
+          </div>
 
-          <label for="item-price">Price</label>
-          <input id="item-price" type="number" step="0.01" min="0" placeholder="e.g. 2500.00" required />
+          <label for="item-cost">Cost</label>
+          <input id="item-cost" type="number" step="0.01" min="0" placeholder="e.g. 1500.00" required />
 
-          <p class="form-note">Control number and date are generated automatically.</p>
+          <label for="item-profit">Profit</label>
+          <input id="item-profit" type="number" step="0.01" min="0" placeholder="e.g. 1000.00" required />
+
+          <p class="form-note">Price is calculated automatically as Cost + Profit. Control number and date are generated automatically too.</p>
 
           <div class="modal-actions">
             <button type="button" id="cancel-add-modal" class="btn btn-ghost">Cancel</button>
@@ -181,12 +264,16 @@
               <strong id="sold-detail-product-type"></strong>
             </div>
             <div class="sold-detail-row">
-              <span>Quantity</span>
-              <strong id="sold-detail-quantity"></strong>
-            </div>
-            <div class="sold-detail-row">
               <span>Price</span>
               <strong id="sold-detail-price"></strong>
+            </div>
+            <div class="sold-detail-row">
+              <span>Cost</span>
+              <strong id="sold-detail-cost"></strong>
+            </div>
+            <div class="sold-detail-row">
+              <span>Profit</span>
+              <strong id="sold-detail-profit"></strong>
             </div>
             <div class="sold-detail-row">
               <span>Date Added</span>

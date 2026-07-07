@@ -246,6 +246,138 @@ button {
   gap: 0.6rem;
 }
 
+.summary-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.summary-chip {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.summary-chip:hover {
+  border-color: var(--gold);
+}
+
+.summary-chip.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+
+.summary-empty-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- Dashboard ---------- */
+.section-subheading {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--navy);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpi-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem 1.4rem;
+}
+
+.kpi-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.kpi-count {
+  margin: 0 0 0.9rem;
+  font-size: 1rem;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.kpi-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  padding: 0.25rem 0;
+}
+
+.kpi-metric-row span {
+  color: var(--text-muted);
+}
+
+.kpi-metric-row strong {
+  color: var(--navy);
+}
+
+.kpi-card-highlight {
+  background: linear-gradient(135deg, var(--navy), var(--navy-dark));
+  color: #fff;
+}
+
+.kpi-card-highlight .kpi-title {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.best-seller-name {
+  margin: 0.4rem 0 0.2rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.best-seller-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.chart-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem 1.4rem;
+}
+
+.chart-title {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 260px;
+}
+
 .view-header {
   display: flex;
   justify-content: space-between;
@@ -292,16 +424,16 @@ button {
   overflow: hidden;
 }
 
-#inventory-table {
+.table-wrapper table {
   width: 100%;
   border-collapse: collapse;
 }
 
-#inventory-table thead {
+.table-wrapper thead {
   background: var(--navy);
 }
 
-#inventory-table th {
+.table-wrapper th {
   text-align: left;
   padding: 0.85rem 1.2rem;
   color: #fff;
@@ -309,21 +441,16 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-weight: 600;
-  cursor: pointer;
-  user-select: none;
   white-space: nowrap;
 }
 
-#inventory-table th:hover {
+.table-wrapper th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.table-wrapper th[data-sort]:hover {
   background: rgba(255, 255, 255, 0.08);
-}
-
-#inventory-table th:last-child {
-  cursor: default;
-}
-
-#inventory-table th:last-child:hover {
-  background: transparent;
 }
 
 .sort-icon {
@@ -332,17 +459,17 @@ button {
   color: var(--gold);
 }
 
-#inventory-table td {
+.table-wrapper td {
   padding: 0.85rem 1.2rem;
   border-bottom: 1px solid var(--border);
   font-size: 0.92rem;
 }
 
-#inventory-table tbody tr:last-child td {
+.table-wrapper tbody tr:last-child td {
   border-bottom: none;
 }
 
-#inventory-table tbody tr:hover {
+.table-wrapper tbody tr:hover {
   background: #faf8f4;
 }
 
@@ -446,6 +573,16 @@ button {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 0.6rem;
+}
+
+#qty-field-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+#qty-field-wrapper .form-note {
+  margin: 0.2rem 0 0;
 }
 
 .form-note {
