@@ -246,37 +246,45 @@ button {
   gap: 0.6rem;
 }
 
-.summary-panel {
+.filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
+  gap: 1rem;
+  align-items: flex-end;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.2rem;
 }
 
-.summary-chip {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--navy);
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 190px;
 }
 
-.summary-chip:hover {
-  border-color: var(--gold);
-}
-
-.summary-chip.active {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: #fff;
-}
-
-.summary-empty-note {
+.filter-field label {
+  font-size: 0.78rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.custom-date-fields {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.6rem;
+  min-width: unset;
+}
+
+.custom-date-fields label {
+  margin-bottom: 0.3rem;
+}
+
+.custom-date-fields input {
+  min-width: 150px;
 }
 
 /* ---------- Dashboard ---------- */
@@ -378,6 +386,99 @@ button {
   height: 260px;
 }
 
+/* ---------- Home ---------- */
+.home-stat-value {
+  margin: 0 0 0.3rem;
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.home-stat-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.home-stat-sub.trend-up {
+  color: #1a9c5b;
+  font-weight: 600;
+}
+
+.home-stat-sub.trend-down {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.home-stat-sub.trend-neutral {
+  color: var(--text-muted);
+}
+
+.home-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 1000px) {
+  .home-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.activity-icon-added {
+  background: var(--navy);
+}
+
+.activity-icon-sold {
+  background: var(--gold);
+}
+
+.activity-text {
+  flex: 1;
+  color: var(--navy);
+}
+
+.activity-date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .view-header {
   display: flex;
   justify-content: space-between;
@@ -408,6 +509,45 @@ button {
 
 .sold-detail-row strong {
   color: var(--navy);
+}
+
+.discount-section {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.discount-section label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.discount-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.discount-row select {
+  flex: 1;
+}
+
+.discount-row input {
+  flex: 1;
+}
+
+.sold-final-price-row {
+  font-size: 1.05rem;
+}
+
+.sold-final-price-row span {
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.sold-final-price-row strong {
+  color: var(--gold);
+  font-size: 1.2rem;
 }
 
 .view-subtitle {

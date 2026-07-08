@@ -35,13 +35,13 @@
             <span>Sharons Gold</span>
           </div>
           <nav>
-            <button class="nav-btn" data-target="home-view">
+            <button class="nav-btn active" data-target="home-view">
               <span class="nav-icon">⌂</span> Home
             </button>
             <button class="nav-btn" data-target="dashboard-view">
               <span class="nav-icon">▤</span> Dashboard
             </button>
-            <button class="nav-btn active" data-target="inventory-view">
+            <button class="nav-btn" data-target="inventory-view">
               <span class="nav-icon">▦</span> Inventory
             </button>
           </nav>
@@ -50,8 +50,67 @@
       </aside>
 
       <main class="main-content">
-        <section id="home-view" class="view hidden">
-          <h1>Home</h1>
+        <section id="home-view" class="view">
+          <div class="view-header">
+            <div>
+              <h1>Welcome Back</h1>
+              <p class="view-subtitle" id="home-date-subtitle"></p>
+            </div>
+            <div class="view-actions">
+              <button id="home-open-sold-modal" class="btn btn-ghost">Mark as Sold</button>
+              <button id="home-open-add-modal" class="btn btn-primary">+ Add Product</button>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="kpi-card">
+              <p class="kpi-title">Items In Stock</p>
+              <p class="home-stat-value" id="home-stat-stock">0</p>
+              <p class="home-stat-sub">Across all product types</p>
+            </div>
+
+            <div class="kpi-card">
+              <p class="kpi-title">Sold This Month</p>
+              <p class="home-stat-value" id="home-stat-sold-month">0</p>
+              <p class="home-stat-sub" id="home-stat-sold-month-sub">items sold</p>
+            </div>
+
+            <div class="kpi-card">
+              <p class="kpi-title">Profit This Month</p>
+              <p class="home-stat-value" id="home-stat-profit-month">0.00</p>
+              <p class="home-stat-sub" id="home-stat-profit-trend">—</p>
+            </div>
+
+            <div class="kpi-card kpi-card-highlight">
+              <p class="kpi-title">Most Popular Item</p>
+              <p class="best-seller-name" id="home-popular-item">—</p>
+              <p class="best-seller-sub" id="home-popular-item-sub">No sales recorded yet</p>
+            </div>
+          </div>
+
+          <div class="home-charts-grid">
+            <div class="chart-card">
+              <p class="chart-title">Best Sellers by Product Type</p>
+              <div class="chart-wrapper">
+                <canvas id="home-popularity-chart"></canvas>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <p class="chart-title">Profit Trend — Last 14 Days</p>
+              <div class="chart-wrapper">
+                <canvas id="home-profit-trend-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Recent Activity</p>
+            <ul class="activity-list" id="home-activity-list">
+              <!-- injected by main.js -->
+            </ul>
+            <p id="home-activity-empty" class="empty-state hidden">No recent activity yet.</p>
+          </div>
         </section>
 
         <section id="dashboard-view" class="view hidden">
@@ -114,7 +173,9 @@
                 <tr>
                   <th>Control No.</th>
                   <th>Product Type</th>
-                  <th>Price</th>
+                  <th>Original Price</th>
+                  <th>Discount</th>
+                  <th>Final Price</th>
                   <th>Cost</th>
                   <th>Profit</th>
                   <th>Date Added</th>
@@ -129,7 +190,7 @@
           </div>
         </section>
 
-        <section id="inventory-view" class="view">
+        <section id="inventory-view" class="view hidden">
           <div class="view-header">
             <div>
               <h1>Inventory</h1>
@@ -141,8 +202,64 @@
             </div>
           </div>
 
-          <div class="summary-panel" id="product-summary">
-            <!-- product type summary chips injected by main.js -->
+          <div class="filter-bar" id="inventory-filter-bar">
+            <div class="filter-field">
+              <label for="filter-product-type">Product Type</label>
+              <select id="filter-product-type">
+                <option value="all">All Products</option>
+                <optgroup label="Gold">
+                  <option value="Gold Earrings">Gold Earrings</option>
+                  <option value="Gold Chain">Gold Chain</option>
+                  <option value="Gold Bracelet">Gold Bracelet</option>
+                  <option value="Gold Ring">Gold Ring</option>
+                  <option value="Gold Wedding Ring">Gold Wedding Ring</option>
+                  <option value="Gold Pendant">Gold Pendant</option>
+                  <option value="Gold Set">Gold Set</option>
+                </optgroup>
+                <optgroup label="Silver">
+                  <option value="Silver Earrings">Silver Earrings</option>
+                  <option value="Silver Chain">Silver Chain</option>
+                  <option value="Silver Bracelet">Silver Bracelet</option>
+                  <option value="Silver Ring">Silver Ring</option>
+                  <option value="Silver Wedding Ring">Silver Wedding Ring</option>
+                  <option value="Silver Pendant">Silver Pendant</option>
+                  <option value="Silver Set">Silver Set</option>
+                </optgroup>
+                <optgroup label="Fashion">
+                  <option value="Fashion Jewelry">Fashion Jewelry</option>
+                  <option value="Fashion Earrings">Fashion Earrings</option>
+                  <option value="Fashion Chain">Fashion Chain</option>
+                  <option value="Fashion Bracelet">Fashion Bracelet</option>
+                  <option value="Fashion Set">Fashion Set</option>
+                  <option value="Fashion Pendant">Fashion Pendant</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="Watch">Watch</option>
+                  <option value="Tsinelas">Tsinelas</option>
+                  <option value="Coffee/Acai Berry">Coffee/Acai Berry</option>
+                  <option value="Birthstones">Birthstones</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="filter-field">
+              <label for="filter-date-range">Date Added</label>
+              <select id="filter-date-range">
+                <option value="all">All Time</option>
+                <option value="today">This Day</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            <div class="filter-field custom-date-fields hidden" id="custom-date-fields">
+              <label for="filter-date-from">From</label>
+              <input type="date" id="filter-date-from" />
+              <label for="filter-date-to">To</label>
+              <input type="date" id="filter-date-to" />
+            </div>
           </div>
 
           <div class="table-wrapper">
@@ -280,6 +397,26 @@
               <strong id="sold-detail-date"></strong>
             </div>
           </div>
+
+          <div class="discount-section">
+            <label for="sold-discount-type">Discount</label>
+            <div class="discount-row">
+              <select id="sold-discount-type">
+                <option value="none" selected>No Discount</option>
+                <option value="percent">Percent (%)</option>
+                <option value="fixed">Fixed Amount</option>
+              </select>
+              <input id="sold-discount-value" type="number" min="0" step="0.01" placeholder="0" class="hidden" />
+            </div>
+          </div>
+
+          <div class="sold-details-card">
+            <div class="sold-detail-row sold-final-price-row">
+              <span>Final Price</span>
+              <strong id="sold-detail-final-price"></strong>
+            </div>
+          </div>
+
           <div class="modal-actions">
             <button type="button" id="cancel-sold-confirm-btn" class="btn btn-ghost">Cancel</button>
             <button type="button" id="confirm-sold-btn" class="btn btn-primary">Confirm Sold</button>
