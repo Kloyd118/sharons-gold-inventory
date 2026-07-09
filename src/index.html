@@ -44,6 +44,9 @@
             <button class="nav-btn" data-target="inventory-view">
               <span class="nav-icon">▦</span> Inventory
             </button>
+            <button class="nav-btn" data-target="transactions-view">
+              <span class="nav-icon">⇄</span> Transactions
+            </button>
           </nav>
         </div>
         <button id="logout-btn" class="btn btn-ghost">Logout</button>
@@ -159,35 +162,6 @@
               <canvas id="sales-trend-chart"></canvas>
             </div>
           </div>
-
-          <div class="view-header">
-            <div>
-              <h2 class="section-subheading">Sold Products</h2>
-              <p class="view-subtitle">Every item marked as sold</p>
-            </div>
-          </div>
-
-          <div class="table-wrapper">
-            <table id="sold-table">
-              <thead>
-                <tr>
-                  <th>Control No.</th>
-                  <th>Product Type</th>
-                  <th>Original Price</th>
-                  <th>Discount</th>
-                  <th>Final Price</th>
-                  <th>Cost</th>
-                  <th>Profit</th>
-                  <th>Date Added</th>
-                  <th>Date Sold</th>
-                </tr>
-              </thead>
-              <tbody id="sold-list">
-                <!-- rows injected by main.js -->
-              </tbody>
-            </table>
-            <p id="sold-empty-state" class="empty-state hidden">No products sold yet.</p>
-          </div>
         </section>
 
         <section id="inventory-view" class="view hidden">
@@ -203,6 +177,11 @@
           </div>
 
           <div class="filter-bar" id="inventory-filter-bar">
+            <div class="filter-field">
+              <label for="filter-search">Search (ID or Branch)</label>
+              <input type="text" id="filter-search" placeholder="e.g. 12 or Monkayo" />
+            </div>
+
             <div class="filter-field">
               <label for="filter-product-type">Product Type</label>
               <select id="filter-product-type">
@@ -268,6 +247,7 @@
                 <tr>
                   <th data-sort="control_number">Control No. <span class="sort-icon"></span></th>
                   <th data-sort="product_type">Product Type <span class="sort-icon"></span></th>
+                  <th data-sort="branch">Branch <span class="sort-icon"></span></th>
                   <th data-sort="price">Price <span class="sort-icon"></span></th>
                   <th data-sort="cost">Cost <span class="sort-icon"></span></th>
                   <th data-sort="profit">Profit <span class="sort-icon"></span></th>
@@ -282,6 +262,43 @@
             <p id="empty-state" class="empty-state hidden">No items yet. Click "Add Product" to get started.</p>
           </div>
         </section>
+
+        <section id="transactions-view" class="view hidden">
+          <div class="view-header">
+            <div>
+              <h1>Transactions</h1>
+              <p class="view-subtitle">Every item that's been sold</p>
+            </div>
+          </div>
+
+          <div class="filter-bar" id="transactions-filter-bar">
+            <div class="filter-field">
+              <label for="filter-transactions-search">Search (ID or Branch)</label>
+              <input type="text" id="filter-transactions-search" placeholder="e.g. 12 or Monkayo" />
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="transactions-table">
+              <thead>
+                <tr>
+                  <th>Control No.</th>
+                  <th>Product Type</th>
+                  <th>Branch</th>
+                  <th>Original Price</th>
+                  <th>Discount</th>
+                  <th>Final Price</th>
+                  <th>Date Added</th>
+                  <th>Date Sold</th>
+                </tr>
+              </thead>
+              <tbody id="transactions-list">
+                <!-- rows injected by main.js -->
+              </tbody>
+            </table>
+            <p id="transactions-empty-state" class="empty-state hidden">No products sold yet.</p>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -289,7 +306,7 @@
     <div id="add-modal-overlay" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="modal-header">
-          <h2 id="modal-title">Add Product</h2>
+          <h2 id="modal-title">Edit Product</h2>
           <button id="close-add-modal" class="modal-close" aria-label="Close">&times;</button>
         </div>
         <form id="item-form">
@@ -330,11 +347,13 @@
             </optgroup>
           </select>
 
-          <div id="qty-field-wrapper">
-            <label for="item-qty">Quantity to Add</label>
-            <input id="item-qty" type="number" min="1" placeholder="e.g. 5" value="1" />
-            <p class="form-note">Each unit gets its own control number, but shares the same product type, price, cost, and profit.</p>
-          </div>
+          <label for="item-branch">Branch</label>
+          <select id="item-branch" required>
+            <option value="" disabled selected>Select a branch</option>
+            <option value="Monkayo">Monkayo</option>
+            <option value="Samal">Samal</option>
+            <option value="Sugod">Sugod</option>
+          </select>
 
           <label for="item-cost">Cost</label>
           <input id="item-cost" type="number" step="0.01" min="0" placeholder="e.g. 1500.00" required />
@@ -342,13 +361,126 @@
           <label for="item-profit">Profit</label>
           <input id="item-profit" type="number" step="0.01" min="0" placeholder="e.g. 1000.00" required />
 
-          <p class="form-note">Price is calculated automatically as Cost + Profit. Control number and date are generated automatically too.</p>
+          <p class="form-note">Price is calculated automatically as Cost + Profit.</p>
 
           <div class="modal-actions">
             <button type="button" id="cancel-add-modal" class="btn btn-ghost">Cancel</button>
             <button type="submit" id="save-item-btn" class="btn btn-primary">Save Item</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Add Product Wizard -->
+    <div id="add-wizard-overlay" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Add Product</h2>
+          <button id="close-add-wizard" class="modal-close" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- Step 1: Branch -->
+        <div id="wizard-step-branch" class="wizard-step">
+          <p class="wizard-title">Select Branch</p>
+          <div class="wizard-options">
+            <button type="button" class="wizard-option-btn" data-branch="Monkayo">Monkayo</button>
+            <button type="button" class="wizard-option-btn" data-branch="Samal">Samal</button>
+            <button type="button" class="wizard-option-btn" data-branch="Sugod">Sugod</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Product Type -->
+        <div id="wizard-step-type" class="wizard-step hidden">
+          <p class="wizard-title">Select Product Type</p>
+          <div class="wizard-options wizard-options-scroll">
+            <p class="wizard-group-label">Gold</p>
+            <button type="button" class="wizard-option-btn" data-type="Gold Earrings">Gold Earrings</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Chain">Gold Chain</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Bracelet">Gold Bracelet</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Ring">Gold Ring</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Wedding Ring">Gold Wedding Ring</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Pendant">Gold Pendant</button>
+            <button type="button" class="wizard-option-btn" data-type="Gold Set">Gold Set</button>
+
+            <p class="wizard-group-label">Silver</p>
+            <button type="button" class="wizard-option-btn" data-type="Silver Earrings">Silver Earrings</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Chain">Silver Chain</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Bracelet">Silver Bracelet</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Ring">Silver Ring</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Wedding Ring">Silver Wedding Ring</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Pendant">Silver Pendant</button>
+            <button type="button" class="wizard-option-btn" data-type="Silver Set">Silver Set</button>
+
+            <p class="wizard-group-label">Fashion</p>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Jewelry">Fashion Jewelry</button>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Earrings">Fashion Earrings</button>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Chain">Fashion Chain</button>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Bracelet">Fashion Bracelet</button>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Set">Fashion Set</button>
+            <button type="button" class="wizard-option-btn" data-type="Fashion Pendant">Fashion Pendant</button>
+
+            <p class="wizard-group-label">Other</p>
+            <button type="button" class="wizard-option-btn" data-type="Watch">Watch</button>
+            <button type="button" class="wizard-option-btn" data-type="Tsinelas">Tsinelas</button>
+            <button type="button" class="wizard-option-btn" data-type="Coffee/Acai Berry">Coffee/Acai Berry</button>
+            <button type="button" class="wizard-option-btn" data-type="Birthstones">Birthstones</button>
+          </div>
+          <button type="button" class="btn btn-ghost wizard-back-btn" data-back-to="wizard-step-branch">Back</button>
+        </div>
+
+        <!-- Step 3: Unit Type -->
+        <div id="wizard-step-unit" class="wizard-step hidden">
+          <p class="wizard-title">Sold By</p>
+          <div class="wizard-options">
+            <button type="button" class="wizard-option-btn" data-unit="piece">Per Piece</button>
+            <button type="button" class="wizard-option-btn" data-unit="gram">Per Gram</button>
+          </div>
+          <button type="button" class="btn btn-ghost wizard-back-btn" data-back-to="wizard-step-type">Back</button>
+        </div>
+
+        <!-- Step 4a: Per Piece -->
+        <div id="wizard-step-piece" class="wizard-step hidden">
+          <div class="wizard-selection-summary">
+            <p><span>Branch</span><strong id="summary-branch-piece"></strong></p>
+            <p><span>Product Type</span><strong id="summary-type-piece"></strong></p>
+          </div>
+
+          <label for="wizard-item-qty">Quantity to Add</label>
+          <input id="wizard-item-qty" type="number" min="1" value="1" />
+          <p class="form-note">Each unit gets its own control number, but shares the same details.</p>
+
+          <label for="wizard-item-cost">Cost</label>
+          <input id="wizard-item-cost" type="number" step="0.01" min="0" placeholder="e.g. 1500.00" />
+
+          <label for="wizard-item-profit">Profit</label>
+          <input id="wizard-item-profit" type="number" step="0.01" min="0" placeholder="e.g. 1000.00" />
+          <p class="form-note">Price is calculated automatically as Cost + Profit.</p>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost wizard-back-btn" data-back-to="wizard-step-unit">Back</button>
+            <button type="button" id="save-piece-btn" class="btn btn-primary">Save Item</button>
+          </div>
+        </div>
+
+        <!-- Step 4b: Per Gram -->
+        <div id="wizard-step-gram" class="wizard-step hidden">
+          <div class="wizard-selection-summary">
+            <p><span>Branch</span><strong id="summary-branch-gram"></strong></p>
+            <p><span>Product Type</span><strong id="summary-type-gram"></strong></p>
+          </div>
+
+          <label for="gram-price-per-gram">Price per Gram</label>
+          <input id="gram-price-per-gram" type="number" step="0.01" min="0" placeholder="e.g. 3200.00" />
+
+          <div id="gram-entries-list" class="gram-entries-list"></div>
+
+          <button type="button" id="add-gram-row-btn" class="btn btn-ghost btn-block">+ Add Product</button>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost wizard-back-btn" data-back-to="wizard-step-unit">Back</button>
+            <button type="button" id="save-gram-btn" class="btn btn-primary">Save All Items</button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- Mark as Sold Modal -->
@@ -379,6 +511,10 @@
             <div class="sold-detail-row">
               <span>Product Type</span>
               <strong id="sold-detail-product-type"></strong>
+            </div>
+            <div class="sold-detail-row">
+              <span>Branch</span>
+              <strong id="sold-detail-branch"></strong>
             </div>
             <div class="sold-detail-row">
               <span>Price</span>

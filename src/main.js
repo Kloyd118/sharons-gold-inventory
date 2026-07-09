@@ -36,7 +36,10 @@ async function ensureInventoryTable() {
         { name: "price", type: "REAL" },
         { name: "cost", type: "REAL DEFAULT 0" },
         { name: "profit", type: "REAL DEFAULT 0" },
-        { name: "date", type: "TEXT" }
+        { name: "date", type: "TEXT" },
+        { name: "branch", type: "TEXT" },
+        { name: "weight_grams", type: "REAL" },
+        { name: "price_per_gram", type: "REAL" }
     ]);
 
     await addMissingColumns("sold_items", [
@@ -50,7 +53,8 @@ async function ensureInventoryTable() {
         { name: "original_price", type: "REAL DEFAULT 0" },
         { name: "discount_type", type: "TEXT DEFAULT 'none'" },
         { name: "discount_value", type: "REAL DEFAULT 0" },
-        { name: "discount_amount", type: "REAL DEFAULT 0" }
+        { name: "discount_amount", type: "REAL DEFAULT 0" },
+        { name: "branch", type: "TEXT" }
     ]);
 }
 
@@ -86,12 +90,12 @@ const emptyState = document.querySelector("#empty-state");
 const modalTitle = document.querySelector("#modal-title");
 const saveItemBtn = document.querySelector("#save-item-btn");
 const sortableHeaders = document.querySelectorAll("#inventory-table th[data-sort]");
-const qtyFieldWrapper = document.querySelector("#qty-field-wrapper");
 const productTypeSelect = document.querySelector("#filter-product-type");
 const dateRangeSelect = document.querySelector("#filter-date-range");
 const customDateFieldsWrapper = document.querySelector("#custom-date-fields");
 const dateFromInput = document.querySelector("#filter-date-from");
 const dateToInput = document.querySelector("#filter-date-to");
+const inventorySearchInput = document.querySelector("#filter-search");
 
 const soldModalOverlay = document.querySelector("#sold-modal-overlay");
 const openSoldModalBtn = document.querySelector("#open-sold-modal");
@@ -109,10 +113,14 @@ const soldDiscountValue = document.querySelector("#sold-discount-value");
 const soldDetailFinalPrice = document.querySelector("#sold-detail-final-price");
 
 // Dashboard elements
-const soldTableBody = document.querySelector("#sold-list");
-const soldEmptyState = document.querySelector("#sold-empty-state");
 const salesTrendCanvas = document.querySelector("#sales-trend-chart");
 let salesTrendChart = null; // Chart.js instance, recreated each time the dashboard loads
+
+// Transactions elements
+const transactionsTableBody = document.querySelector("#transactions-list");
+const transactionsEmptyState = document.querySelector("#transactions-empty-state");
+const transactionsSearchInput = document.querySelector("#filter-transactions-search");
+let currentSoldItems = []; // Holds the last-loaded sold items for live search filtering
 
 // Home elements
 const homeOpenAddModalBtn = document.querySelector("#home-open-add-modal");
@@ -185,36 +193,25 @@ navBtns.forEach(btn => {
         if (target.dataset.target === "home-view") {
             loadHome();
         }
+        if (target.dataset.target === "transactions-view") {
+            loadTransactions();
+        }
     });
 });
 
-// Quick actions on the Home screen reuse the same modals as the Inventory view.
-homeOpenAddModalBtn.addEventListener("click", openAddModal);
+// Quick actions on the Home screen reuse the same modals/wizard as the Inventory view.
+homeOpenAddModalBtn.addEventListener("click", openAddWizard);
 homeOpenSoldModalBtn.addEventListener("click", openSoldModal);
 
-// ---------- Add / Edit Product Modal ----------
-function openAddModal() {
-    editingControlNumber = null;
-    modalTitle.textContent = "Add Product";
-    saveItemBtn.textContent = "Save Item";
-    itemForm.reset();
-    document.querySelector("#item-qty").value = 1;
-    qtyFieldWrapper.classList.remove("hidden");
-    document.querySelector("#item-qty").required = true;
-    addModalOverlay.classList.remove("hidden");
-    document.querySelector("#item-type").focus();
-}
-
+// ---------- Edit Product Modal ----------
+// (Adding new products now goes through the step-by-step wizard below.)
 function openEditModal(item) {
     editingControlNumber = item.control_number;
     modalTitle.textContent = "Edit Product";
     saveItemBtn.textContent = "Update Item";
 
-    // Editing acts on a single existing unit, so quantity doesn't apply here.
-    qtyFieldWrapper.classList.add("hidden");
-    document.querySelector("#item-qty").required = false;
-
     document.querySelector("#item-type").value = item.product_type;
+    document.querySelector("#item-branch").value = item.branch || "";
     document.querySelector("#item-cost").value = item.cost;
     document.querySelector("#item-profit").value = item.profit;
 
@@ -226,12 +223,8 @@ function closeAddModal() {
     addModalOverlay.classList.add("hidden");
     itemForm.reset();
     editingControlNumber = null;
-    modalTitle.textContent = "Add Product";
-    saveItemBtn.textContent = "Save Item";
-    qtyFieldWrapper.classList.remove("hidden");
 }
 
-openAddModalBtn.addEventListener("click", openAddModal);
 closeAddModalBtn.addEventListener("click", closeAddModal);
 cancelAddModalBtn.addEventListener("click", closeAddModal);
 
@@ -251,6 +244,9 @@ document.addEventListener("keydown", (e) => {
         if (!soldModalOverlay.classList.contains("hidden")) {
             closeSoldModal();
         }
+        if (!addWizardOverlay.classList.contains("hidden")) {
+            closeAddWizard();
+        }
     }
 });
 
@@ -258,7 +254,7 @@ document.addEventListener("keydown", (e) => {
 itemForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const typeInput = document.querySelector("#item-type");
-    const qtyInput = document.querySelector("#item-qty");
+    const branchInput = document.querySelector("#item-branch");
     const costInput = document.querySelector("#item-cost");
     const profitInput = document.querySelector("#item-profit");
 
@@ -266,33 +262,20 @@ itemForm.addEventListener("submit", async (e) => {
     const profit = parseFloat(profitInput.value) || 0;
     const price = cost + profit; // Price is always derived, never entered directly.
 
-    if (editingControlNumber === null) {
-        // Adding new item(s): date is captured automatically, not entered by the user.
-        const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-        const count = Math.max(1, parseInt(qtyInput.value) || 1);
-
-        // Each unit gets its own row/control number, but shares the same details.
-        for (let i = 0; i < count; i++) {
-            await db.execute(
-                "INSERT INTO inventory (product_type, price, cost, profit, date) VALUES ($1, $2, $3, $4, $5)",
-                [typeInput.value, price, cost, profit, today]
-            );
-        }
-    } else {
-        // Editing an existing single item: keep its original date, just update the details.
-        await db.execute(
-            "UPDATE inventory SET product_type = $1, price = $2, cost = $3, profit = $4 WHERE control_number = $5",
-            [typeInput.value, price, cost, profit, editingControlNumber]
-        );
-    }
+    // This modal now only handles editing an existing single item.
+    // Adding new items goes through the step-by-step wizard instead.
+    await db.execute(
+        "UPDATE inventory SET product_type = $1, branch = $2, price = $3, cost = $4, profit = $5 WHERE control_number = $6",
+        [typeInput.value, branchInput.value, price, cost, profit, editingControlNumber]
+    );
 
     closeAddModal();
     loadItems();
     refreshSecondaryViewsIfVisible();
 });
 
-// Keeps Home and Dashboard in sync whenever inventory or sales data changes,
-// but only re-queries them if they're the view currently on screen.
+// Keeps Home, Dashboard, and Transactions in sync whenever inventory or sales
+// data changes, but only re-queries them if they're the view currently on screen.
 function refreshSecondaryViewsIfVisible() {
     if (!document.getElementById("dashboard-view").classList.contains("hidden")) {
         loadDashboard();
@@ -300,7 +283,183 @@ function refreshSecondaryViewsIfVisible() {
     if (!document.getElementById("home-view").classList.contains("hidden")) {
         loadHome();
     }
+    if (!document.getElementById("transactions-view").classList.contains("hidden")) {
+        loadTransactions();
+    }
 }
+
+// ---------- Add Product Wizard ----------
+const addWizardOverlay = document.querySelector("#add-wizard-overlay");
+const wizardCloseBtn = document.querySelector("#close-add-wizard");
+const wizardSteps = {
+    branch: document.querySelector("#wizard-step-branch"),
+    type: document.querySelector("#wizard-step-type"),
+    unit: document.querySelector("#wizard-step-unit"),
+    piece: document.querySelector("#wizard-step-piece"),
+    gram: document.querySelector("#wizard-step-gram")
+};
+const gramPricePerGramInput = document.querySelector("#gram-price-per-gram");
+const gramEntriesList = document.querySelector("#gram-entries-list");
+
+let wizardBranch = null;
+let wizardProductType = null;
+
+function showWizardStep(stepEl) {
+    Object.values(wizardSteps).forEach(s => s.classList.add("hidden"));
+    stepEl.classList.remove("hidden");
+}
+
+function openAddWizard() {
+    wizardBranch = null;
+    wizardProductType = null;
+    gramEntriesList.innerHTML = "";
+    gramPricePerGramInput.value = "";
+    document.querySelector("#wizard-item-qty").value = 1;
+    document.querySelector("#wizard-item-cost").value = "";
+    document.querySelector("#wizard-item-profit").value = "";
+    showWizardStep(wizardSteps.branch);
+    addWizardOverlay.classList.remove("hidden");
+}
+
+function closeAddWizard() {
+    addWizardOverlay.classList.add("hidden");
+}
+
+openAddModalBtn.addEventListener("click", openAddWizard);
+wizardCloseBtn.addEventListener("click", closeAddWizard);
+
+addWizardOverlay.addEventListener("click", (e) => {
+    if (e.target === addWizardOverlay) {
+        closeAddWizard();
+    }
+});
+
+// Step navigation: "Back" buttons return to whichever step is named in data-back-to.
+document.querySelectorAll(".wizard-back-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        showWizardStep(document.getElementById(btn.dataset.backTo));
+    });
+});
+
+// Step 1: pick a branch
+wizardSteps.branch.querySelectorAll(".wizard-option-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        wizardBranch = btn.dataset.branch;
+        showWizardStep(wizardSteps.type);
+    });
+});
+
+// Step 2: pick a product type
+wizardSteps.type.querySelectorAll(".wizard-option-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        wizardProductType = btn.dataset.type;
+        showWizardStep(wizardSteps.unit);
+    });
+});
+
+// Step 3: pick per-piece or per-gram, then show the matching final step
+// with the branch/type selections summarized as plain text (not editable selects).
+wizardSteps.unit.querySelectorAll(".wizard-option-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const unit = btn.dataset.unit;
+
+        if (unit === "piece") {
+            document.querySelector("#summary-branch-piece").textContent = wizardBranch;
+            document.querySelector("#summary-type-piece").textContent = wizardProductType;
+            showWizardStep(wizardSteps.piece);
+        } else {
+            document.querySelector("#summary-branch-gram").textContent = wizardBranch;
+            document.querySelector("#summary-type-gram").textContent = wizardProductType;
+            showWizardStep(wizardSteps.gram);
+        }
+    });
+});
+
+// Step 4a: Per Piece — same math as before (Cost + Profit = Price), just reached
+// through the wizard instead of a dropdown-based form.
+document.querySelector("#save-piece-btn").addEventListener("click", async () => {
+    const qty = Math.max(1, parseInt(document.querySelector("#wizard-item-qty").value) || 1);
+    const cost = parseFloat(document.querySelector("#wizard-item-cost").value) || 0;
+    const profit = parseFloat(document.querySelector("#wizard-item-profit").value) || 0;
+    const price = cost + profit;
+    const today = new Date().toISOString().split("T")[0];
+
+    // Each unit gets its own control number, but shares the same details.
+    for (let i = 0; i < qty; i++) {
+        await db.execute(
+            "INSERT INTO inventory (product_type, branch, price, cost, profit, date) VALUES ($1, $2, $3, $4, $5, $6)",
+            [wizardProductType, wizardBranch, price, cost, profit, today]
+        );
+    }
+
+    closeAddWizard();
+    loadItems();
+    refreshSecondaryViewsIfVisible();
+});
+
+// Step 4b: Per Gram — "+ Add Product" appends another grams input row, each row's
+// price is calculated live from grams x price-per-gram. "Save All Items" inserts
+// one inventory row per filled-in row.
+document.querySelector("#add-gram-row-btn").addEventListener("click", () => {
+    const row = document.createElement("div");
+    row.className = "gram-entry-row";
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = "0.01";
+    input.min = "0";
+    input.placeholder = "grams";
+
+    const priceSpan = document.createElement("span");
+    priceSpan.className = "gram-entry-price";
+    priceSpan.textContent = formatCurrency(0);
+
+    input.addEventListener("input", () => {
+        const grams = parseFloat(input.value) || 0;
+        const pricePerGram = parseFloat(gramPricePerGramInput.value) || 0;
+        priceSpan.textContent = formatCurrency(grams * pricePerGram);
+    });
+
+    row.appendChild(input);
+    row.appendChild(priceSpan);
+    gramEntriesList.appendChild(row);
+    input.focus();
+});
+
+// Recalculate every row's price live if the price-per-gram value changes after
+// some rows already have grams entered.
+gramPricePerGramInput.addEventListener("input", () => {
+    const pricePerGram = parseFloat(gramPricePerGramInput.value) || 0;
+    gramEntriesList.querySelectorAll(".gram-entry-row").forEach(row => {
+        const grams = parseFloat(row.querySelector("input").value) || 0;
+        row.querySelector(".gram-entry-price").textContent = formatCurrency(grams * pricePerGram);
+    });
+});
+
+document.querySelector("#save-gram-btn").addEventListener("click", async () => {
+    const pricePerGram = parseFloat(gramPricePerGramInput.value) || 0;
+    const today = new Date().toISOString().split("T")[0];
+    const rows = gramEntriesList.querySelectorAll(".gram-entry-row");
+
+    for (const row of rows) {
+        const grams = parseFloat(row.querySelector("input").value) || 0;
+        if (grams <= 0) continue; // Skip empty/unfilled rows
+        const price = grams * pricePerGram;
+
+        // No separate cost field for gram items: profit is recorded as the full
+        // price so it still shows up correctly in Dashboard/Home profit totals.
+        await db.execute(
+            `INSERT INTO inventory
+                (product_type, branch, price, cost, profit, date, weight_grams, price_per_gram)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [wizardProductType, wizardBranch, price, 0, price, today, grams, pricePerGram]
+        );
+    }
+
+    closeAddWizard();
+    loadItems();
+    refreshSecondaryViewsIfVisible();
+});
 
 // ---------- Delete Item ----------
 async function deleteItem(controlNumber) {
@@ -404,6 +563,7 @@ async function findSoldItem() {
 
     document.querySelector("#sold-detail-control-number").textContent = pendingSoldItem.control_number;
     document.querySelector("#sold-detail-product-type").textContent = pendingSoldItem.product_type;
+    document.querySelector("#sold-detail-branch").textContent = pendingSoldItem.branch || "—";
     document.querySelector("#sold-detail-price").textContent = formatCurrency(pendingSoldItem.price);
     document.querySelector("#sold-detail-cost").textContent = formatCurrency(pendingSoldItem.cost);
     document.querySelector("#sold-detail-profit").textContent = formatCurrency(pendingSoldItem.profit);
@@ -429,12 +589,13 @@ async function confirmSoldItem() {
 
     await db.execute(
         `INSERT INTO sold_items
-            (control_number, product_type, price, cost, profit, date_added, date_sold,
+            (control_number, product_type, branch, price, cost, profit, date_added, date_sold,
              original_price, discount_type, discount_value, discount_amount)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
             pendingSoldItem.control_number,
             pendingSoldItem.product_type,
+            pendingSoldItem.branch,
             finalPrice,
             pendingSoldItem.cost,
             finalProfit,
@@ -503,6 +664,15 @@ function getDateBoundaries() {
 }
 
 function itemMatchesFilters(item) {
+    const searchTerm = inventorySearchInput.value.trim().toLowerCase();
+    if (searchTerm) {
+        const matchesId = String(item.control_number).includes(searchTerm);
+        const matchesBranch = (item.branch || "").toLowerCase().includes(searchTerm);
+        if (!matchesId && !matchesBranch) {
+            return false;
+        }
+    }
+
     const productFilter = productTypeSelect.value;
     if (productFilter !== "all" && item.product_type !== productFilter) {
         return false;
@@ -545,6 +715,7 @@ dateRangeSelect.addEventListener("change", () => {
 productTypeSelect.addEventListener("change", applySortAndRender);
 dateFromInput.addEventListener("change", applySortAndRender);
 dateToInput.addEventListener("change", applySortAndRender);
+inventorySearchInput.addEventListener("input", applySortAndRender);
 
 function applySortAndRender() {
     const filtered = currentItems.filter(itemMatchesFilters);
@@ -558,7 +729,7 @@ function sortItems(items, column, direction) {
         let valA = a[column];
         let valB = b[column];
 
-        if (column === "product_type") {
+        if (column === "product_type" || column === "branch") {
             valA = (valA || "").toLowerCase();
             valB = (valB || "").toLowerCase();
             if (valA < valB) return direction === "asc" ? -1 : 1;
@@ -609,7 +780,9 @@ sortableHeaders.forEach(th => {
 function renderTable(items, filteredCount) {
     inventoryTableBody.innerHTML = "";
 
-    const hasActiveFilter = productTypeSelect.value !== "all" || dateRangeSelect.value !== "all";
+    const hasActiveFilter = productTypeSelect.value !== "all"
+        || dateRangeSelect.value !== "all"
+        || inventorySearchInput.value.trim() !== "";
 
     if (items.length === 0) {
         emptyState.classList.remove("hidden");
@@ -628,6 +801,9 @@ function renderTable(items, filteredCount) {
 
         const typeCell = document.createElement("td");
         typeCell.textContent = item.product_type;
+
+        const branchCell = document.createElement("td");
+        branchCell.textContent = item.branch || "—";
 
         const priceCell = document.createElement("td");
         priceCell.textContent = formatCurrency(item.price);
@@ -661,6 +837,7 @@ function renderTable(items, filteredCount) {
 
         row.appendChild(idCell);
         row.appendChild(typeCell);
+        row.appendChild(branchCell);
         row.appendChild(priceCell);
         row.appendChild(costCell);
         row.appendChild(profitCell);
@@ -713,7 +890,6 @@ async function loadDashboard() {
     renderKpiCards(soldItems);
     renderBestSeller(soldItems);
     renderSalesTrendChart(soldItems);
-    renderSoldTable(soldItems);
 }
 
 function summarizePeriod(soldItems, startDateStr, endDateStr) {
@@ -843,14 +1019,39 @@ function renderSalesTrendChart(soldItems) {
     });
 }
 
-function renderSoldTable(soldItems) {
-    soldTableBody.innerHTML = "";
+// ---------- Transactions ----------
+async function loadTransactions() {
+    currentSoldItems = await db.select("SELECT * FROM sold_items ORDER BY date_sold DESC, id DESC");
+    applyTransactionsFilter();
+}
+
+function applyTransactionsFilter() {
+    const term = transactionsSearchInput.value.trim().toLowerCase();
+
+    const filtered = !term
+        ? currentSoldItems
+        : currentSoldItems.filter(item => {
+            const matchesId = String(item.control_number).includes(term);
+            const matchesBranch = (item.branch || "").toLowerCase().includes(term);
+            return matchesId || matchesBranch;
+        });
+
+    renderTransactionsTable(filtered);
+}
+
+transactionsSearchInput.addEventListener("input", applyTransactionsFilter);
+
+function renderTransactionsTable(soldItems) {
+    transactionsTableBody.innerHTML = "";
 
     if (soldItems.length === 0) {
-        soldEmptyState.classList.remove("hidden");
+        transactionsEmptyState.classList.remove("hidden");
+        transactionsEmptyState.textContent = currentSoldItems.length === 0
+            ? "No products sold yet."
+            : "No transactions match your search.";
         return;
     }
-    soldEmptyState.classList.add("hidden");
+    transactionsEmptyState.classList.add("hidden");
 
     soldItems.forEach(item => {
         const row = document.createElement("tr");
@@ -861,6 +1062,9 @@ function renderSoldTable(soldItems) {
         const typeCell = document.createElement("td");
         typeCell.textContent = item.product_type;
 
+        const branchCell = document.createElement("td");
+        branchCell.textContent = item.branch || "—";
+
         const originalPriceCell = document.createElement("td");
         originalPriceCell.textContent = formatCurrency(item.original_price || item.price);
 
@@ -870,12 +1074,6 @@ function renderSoldTable(soldItems) {
         const finalPriceCell = document.createElement("td");
         finalPriceCell.textContent = formatCurrency(item.price);
 
-        const costCell = document.createElement("td");
-        costCell.textContent = formatCurrency(item.cost);
-
-        const profitCell = document.createElement("td");
-        profitCell.textContent = formatCurrency(item.profit);
-
         const dateAddedCell = document.createElement("td");
         dateAddedCell.textContent = formatDate(item.date_added);
 
@@ -884,15 +1082,14 @@ function renderSoldTable(soldItems) {
 
         row.appendChild(idCell);
         row.appendChild(typeCell);
+        row.appendChild(branchCell);
         row.appendChild(originalPriceCell);
         row.appendChild(discountCell);
         row.appendChild(finalPriceCell);
-        row.appendChild(costCell);
-        row.appendChild(profitCell);
         row.appendChild(dateAddedCell);
         row.appendChild(dateSoldCell);
 
-        soldTableBody.appendChild(row);
+        transactionsTableBody.appendChild(row);
     });
 }
 
