@@ -62,6 +62,7 @@
             <div class="view-actions">
               <button id="home-open-sold-modal" class="btn btn-ghost">Mark as Sold</button>
               <button id="home-open-add-modal" class="btn btn-primary">+ Add Product</button>
+              <button id="open-add-user-modal" class="btn btn-ghost">+ Add User</button>
             </div>
           </div>
 
@@ -178,8 +179,8 @@
 
           <div class="filter-bar" id="inventory-filter-bar">
             <div class="filter-field">
-              <label for="filter-search">Search (ID or Branch)</label>
-              <input type="text" id="filter-search" placeholder="e.g. 12 or Monkayo" />
+              <label for="filter-search">Search (ID)</label>
+              <input type="text" id="filter-search" placeholder="e.g. 12" />
             </div>
 
             <div class="filter-field">
@@ -218,6 +219,15 @@
                   <option value="Coffee/Acai Berry">Coffee/Acai Berry</option>
                   <option value="Birthstones">Birthstones</option>
                 </optgroup>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-branch">Branch</label>
+              <select id="filter-branch">
+                <option value="all">All Branches</option>
+                <option value="Monkayo">Monkayo</option>
+                <option value="Samal">Samal</option>
+                <option value="Sugod">Sugod</option>
               </select>
             </div>
 
@@ -273,23 +283,95 @@
 
           <div class="filter-bar" id="transactions-filter-bar">
             <div class="filter-field">
-              <label for="filter-transactions-search">Search (ID or Branch)</label>
-              <input type="text" id="filter-transactions-search" placeholder="e.g. 12 or Monkayo" />
+              <label for="filter-transactions-search">Search (ID)</label>
+              <input type="text" id="filter-transactions-search" placeholder="e.g. 12" />
             </div>
+
+            <div class="filter-field">
+              <label for="filter-transactions-product-type">Product Type</label>
+              <select id="filter-transactions-product-type">
+                <option value="all">All Products</option>
+                <optgroup label="Gold">
+                  <option value="Gold Earrings">Gold Earrings</option>
+                  <option value="Gold Chain">Gold Chain</option>
+                  <option value="Gold Bracelet">Gold Bracelet</option>
+                  <option value="Gold Ring">Gold Ring</option>
+                  <option value="Gold Wedding Ring">Gold Wedding Ring</option>
+                  <option value="Gold Pendant">Gold Pendant</option>
+                  <option value="Gold Set">Gold Set</option>
+                </optgroup>
+                <optgroup label="Silver">
+                  <option value="Silver Earrings">Silver Earrings</option>
+                  <option value="Silver Chain">Silver Chain</option>
+                  <option value="Silver Bracelet">Silver Bracelet</option>
+                  <option value="Silver Ring">Silver Ring</option>
+                  <option value="Silver Wedding Ring">Silver Wedding Ring</option>
+                  <option value="Silver Pendant">Silver Pendant</option>
+                  <option value="Silver Set">Silver Set</option>
+                </optgroup>
+                <optgroup label="Fashion">
+                  <option value="Fashion Jewelry">Fashion Jewelry</option>
+                  <option value="Fashion Earrings">Fashion Earrings</option>
+                  <option value="Fashion Chain">Fashion Chain</option>
+                  <option value="Fashion Bracelet">Fashion Bracelet</option>
+                  <option value="Fashion Set">Fashion Set</option>
+                  <option value="Fashion Pendant">Fashion Pendant</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="Watch">Watch</option>
+                  <option value="Tsinelas">Tsinelas</option>
+                  <option value="Coffee/Acai Berry">Coffee/Acai Berry</option>
+                  <option value="Birthstones">Birthstones</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="filter-field">
+              <label for="filter-transactions-branch">Branch</label>
+              <select id="filter-transactions-branch">
+                <option value="all">All Branches</option>
+                <option value="Monkayo">Monkayo</option>
+                <option value="Samal">Samal</option>
+                <option value="Sugod">Sugod</option>
+              </select>
+            </div>
+
+            <div class="filter-field">
+              <label for="filter-transactions-date-range">Date Sold</label>
+              <select id="filter-transactions-date-range">
+                <option value="all">All Time</option>
+                <option value="today">This Day</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            <div class="filter-field custom-date-fields hidden" id="transactions-custom-date-fields">
+              <label for="filter-transactions-date-from">From</label>
+              <input type="date" id="filter-transactions-date-from" />
+              <label for="filter-transactions-date-to">To</label>
+              <input type="date" id="filter-transactions-date-to" />
+            </div>
+
+
           </div>
+
+
 
           <div class="table-wrapper">
             <table id="transactions-table">
               <thead>
                 <tr>
-                  <th>Control No.</th>
-                  <th>Product Type</th>
-                  <th>Branch</th>
-                  <th>Original Price</th>
+                  <th data-sort="control_number">Control No. <span class="sort-icon"></span></th>
+                  <th data-sort="product_type">Product Type <span class="sort-icon"></span></th>
+                  <th data-sort="branch">Branch <span class="sort-icon"></span></th>
+                  <th data-sort="original_price">Original Price <span class="sort-icon"></span></th>
                   <th>Discount</th>
-                  <th>Final Price</th>
-                  <th>Date Added</th>
-                  <th>Date Sold</th>
+                  <th data-sort="price">Final Price <span class="sort-icon"></span></th>
+                  <th data-sort="date_added">Date Added <span class="sort-icon"></span></th>
+                  <th data-sort="date_sold">Date Sold <span class="sort-icon"></span></th>
                 </tr>
               </thead>
               <tbody id="transactions-list">
@@ -560,5 +642,55 @@
         </div>
       </div>
     </div>
+
+    <!-- Add User Modal -->
+<div id="add-user-modal-overlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Add User</h2>
+      <button id="close-add-user-modal" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <form id="add-user-form">
+      <label for="user-name">Name</label>
+      <input id="user-name" type="text" placeholder="Full name" required />
+
+      <label>Role</label>
+      <div class="radio-group">
+        <label class="radio-option">
+          <input type="radio" name="user-role" value="Employee" checked />
+          Employee
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="user-role" value="Auditor" />
+          Auditor
+        </label>
+      </div>
+
+      <label for="user-location">Location</label>
+      <select id="user-location" required>
+        <option value="" disabled selected>Select location</option>
+        <option value="Samal">Samal</option>
+        <option value="Sugod">Sugod</option>
+        <option value="Monkayo">Monkayo</option>
+        <option value="Any">Any</option>
+      </select>
+
+      <label for="user-password">Password</label>
+      <input id="user-password" type="password" placeholder="Set a password" required />
+
+      <p id="add-user-error" class="error-msg"></p>
+
+      <div class="modal-actions">
+        <button type="button" id="cancel-add-user" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+
+
   </body>
 </html>

@@ -868,3 +868,24 @@ select:focus {
   color: var(--gold);
   font-size: 0.9rem;
 }
+
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  margin: 0.3rem 0 0.6rem;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--navy);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.radio-option input[type="radio"] {
+  width: auto;
+  cursor: pointer;
+}

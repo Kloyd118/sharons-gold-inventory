@@ -70,7 +70,55 @@ async function addMissingColumns(tableName, expectedColumns) {
     }
 }
 
+
+async function ensureUsersTable() {
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            role TEXT,
+            location TEXT,
+            password TEXT
+        )
+    `);
+
+    // If the table already existed from an earlier version, patch in the
+    // location column without touching any existing rows.
+    await addMissingColumns("users", [
+        { name: "name", type: "TEXT" },
+        { name: "role", type: "TEXT" },
+        { name: "location", type: "TEXT" },
+        { name: "password", type: "TEXT" }
+    ]);
+
+    // Enforces "only 1 admin" at the database level: a unique index that only
+    // applies to rows where role = 'admin'. A second admin insert will fail outright.
+    await db.execute(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_single_admin
+        ON users(role)
+        WHERE role = 'admin'
+    `);
+
+    // Seed the one admin account, but only if an admin doesn't already exist.
+    const existingAdmin = await db.select("SELECT id FROM users WHERE role = 'admin'");
+    if (existingAdmin.length === 0) {
+        await db.execute(
+            "INSERT INTO users (name, role, location, password) VALUES ($1, $2, $3, $4)",
+            ["user", "admin", "admin", "pass123"]
+        );
+        console.info('Seeded the initial admin account (name: "user", location: "admin").');
+    } else {
+        // Admin already existed from before location was added — backfill it
+        // so the seeded account matches what you asked for.
+        await db.execute(
+            "UPDATE users SET location = 'admin' WHERE role = 'admin' AND (location IS NULL OR location = '')"
+        );
+    }
+}
 await ensureInventoryTable();
+
+await ensureUsersTable();
+
 
 const loginScreen = document.querySelector("#login-screen");
 const appLayout = document.querySelector("#app-layout");
@@ -96,6 +144,14 @@ const customDateFieldsWrapper = document.querySelector("#custom-date-fields");
 const dateFromInput = document.querySelector("#filter-date-from");
 const dateToInput = document.querySelector("#filter-date-to");
 const inventorySearchInput = document.querySelector("#filter-search");
+const inventoryBranchSelect = document.querySelector("#filter-branch");
+
+const addUserModalOverlay = document.querySelector("#add-user-modal-overlay");
+const openAddUserModalBtn = document.querySelector("#open-add-user-modal");
+const closeAddUserModalBtn = document.querySelector("#close-add-user-modal");
+const cancelAddUserBtn = document.querySelector("#cancel-add-user");
+const addUserForm = document.querySelector("#add-user-form");
+const addUserError = document.querySelector("#add-user-error");
 
 const soldModalOverlay = document.querySelector("#sold-modal-overlay");
 const openSoldModalBtn = document.querySelector("#open-sold-modal");
@@ -120,6 +176,14 @@ let salesTrendChart = null; // Chart.js instance, recreated each time the dashbo
 const transactionsTableBody = document.querySelector("#transactions-list");
 const transactionsEmptyState = document.querySelector("#transactions-empty-state");
 const transactionsSearchInput = document.querySelector("#filter-transactions-search");
+const transactionsProductTypeSelect = document.querySelector("#filter-transactions-product-type");
+const transactionsBranchSelect = document.querySelector("#filter-transactions-branch");
+const transactionsDateRangeSelect = document.querySelector("#filter-transactions-date-range");
+const transactionsCustomDateFieldsWrapper = document.querySelector("#transactions-custom-date-fields");
+const transactionsDateFromInput = document.querySelector("#filter-transactions-date-from");
+const transactionsDateToInput = document.querySelector("#filter-transactions-date-to");
+const transactionsSortableHeaders = document.querySelectorAll("#transactions-table th[data-sort]");
+let transactionsSortState = { column: "date_sold", direction: "desc" };
 let currentSoldItems = []; // Holds the last-loaded sold items for live search filtering
 
 // Home elements
@@ -154,13 +218,62 @@ let currentItems = [];
 // Default: sort by control_number, highest first.
 let sortState = { column: "control_number", direction: "desc" };
 
+function openAddUserModal() {
+    addUserForm.reset();
+    addUserError.textContent = "";
+    addUserModalOverlay.classList.remove("hidden");
+    document.querySelector("#user-name").focus();
+}
+
+function closeAddUserModal() {
+    addUserModalOverlay.classList.add("hidden");
+    addUserForm.reset();
+    addUserError.textContent = "";
+}
+
+openAddUserModalBtn.addEventListener("click", openAddUserModal);
+closeAddUserModalBtn.addEventListener("click", closeAddUserModal);
+cancelAddUserBtn.addEventListener("click", closeAddUserModal);
+
+addUserModalOverlay.addEventListener("click", (e) => {
+    if (e.target === addUserModalOverlay) {
+        closeAddUserModal();
+    }
+});
+
+addUserForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.querySelector("#user-name").value.trim();
+    const role = document.querySelector('input[name="user-role"]:checked').value;
+    const location = document.querySelector("#user-location").value;
+    const password = document.querySelector("#user-password").value;
+
+    if (!name || !location || !password) {
+        addUserError.textContent = "Please fill in all fields.";
+        return;
+    }
+
+    await db.execute(
+        "INSERT INTO users (name, role, location, password) VALUES ($1, $2, $3, $4)",
+        [name, role, location, password]
+    );
+
+    closeAddUserModal();
+});
+
 // ---------- Login ----------
-loginForm.addEventListener("submit", (e) => {
+loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const user = document.querySelector("#username").value;
     const pass = document.querySelector("#password").value;
 
-    if (user === "admin" && pass === "admin123") {
+    const results = await db.select(
+        "SELECT * FROM users WHERE name = $1 AND password = $2",
+        [user, pass]
+    );
+
+    if (results.length > 0) {
         loginError.textContent = "";
         loginForm.reset();
         loginScreen.classList.add("hidden");
@@ -665,12 +778,13 @@ function getDateBoundaries() {
 
 function itemMatchesFilters(item) {
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
-    if (searchTerm) {
-        const matchesId = String(item.control_number).includes(searchTerm);
-        const matchesBranch = (item.branch || "").toLowerCase().includes(searchTerm);
-        if (!matchesId && !matchesBranch) {
-            return false;
-        }
+    if (searchTerm && !String(item.control_number).includes(searchTerm)) {
+        return false;
+    }
+
+    const branchFilter = inventoryBranchSelect.value;
+    if (branchFilter !== "all" && item.branch !== branchFilter) {
+        return false;
     }
 
     const productFilter = productTypeSelect.value;
@@ -713,6 +827,7 @@ dateRangeSelect.addEventListener("change", () => {
 });
 
 productTypeSelect.addEventListener("change", applySortAndRender);
+inventoryBranchSelect.addEventListener("change", applySortAndRender);
 dateFromInput.addEventListener("change", applySortAndRender);
 dateToInput.addEventListener("change", applySortAndRender);
 inventorySearchInput.addEventListener("input", applySortAndRender);
@@ -737,7 +852,7 @@ function sortItems(items, column, direction) {
             return 0;
         }
 
-        if (column === "date") {
+        if (column === "date" || column === "date_added" || column === "date_sold") {
             valA = new Date(valA).getTime();
             valB = new Date(valB).getTime();
         }
@@ -781,6 +896,7 @@ function renderTable(items, filteredCount) {
     inventoryTableBody.innerHTML = "";
 
     const hasActiveFilter = productTypeSelect.value !== "all"
+        || inventoryBranchSelect.value !== "all"
         || dateRangeSelect.value !== "all"
         || inventorySearchInput.value.trim() !== "";
 
@@ -1027,19 +1143,88 @@ async function loadTransactions() {
 
 function applyTransactionsFilter() {
     const term = transactionsSearchInput.value.trim().toLowerCase();
+    const productFilter = transactionsProductTypeSelect.value;
+    const branchFilter = transactionsBranchSelect.value;
+    const dateMode = transactionsDateRangeSelect.value;
 
-    const filtered = !term
-        ? currentSoldItems
-        : currentSoldItems.filter(item => {
-            const matchesId = String(item.control_number).includes(term);
-            const matchesBranch = (item.branch || "").toLowerCase().includes(term);
-            return matchesId || matchesBranch;
+    let filtered = currentSoldItems;
+
+    if (term) {
+        filtered = filtered.filter(item => String(item.control_number).includes(term));
+    }
+
+    if (productFilter !== "all") {
+        filtered = filtered.filter(item => item.product_type === productFilter);
+    }
+
+    if (branchFilter !== "all") {
+        filtered = filtered.filter(item => item.branch === branchFilter);
+    }
+
+    if (dateMode !== "all") {
+        const { todayStr, weekStartStr, monthStartStr, yearStartStr } = getDateBoundaries();
+
+        filtered = filtered.filter(item => {
+            const soldDate = item.date_sold;
+            if (dateMode === "today") return soldDate === todayStr;
+            if (dateMode === "week") return soldDate >= weekStartStr && soldDate <= todayStr;
+            if (dateMode === "month") return soldDate >= monthStartStr && soldDate <= todayStr;
+            if (dateMode === "year") return soldDate >= yearStartStr && soldDate <= todayStr;
+            if (dateMode === "custom") {
+                const from = transactionsDateFromInput.value;
+                const to = transactionsDateToInput.value;
+                if (from && soldDate < from) return false;
+                if (to && soldDate > to) return false;
+                return true;
+            }
+            return true;
         });
+    }
+
+    filtered = sortItems(filtered, transactionsSortState.column, transactionsSortState.direction);
 
     renderTransactionsTable(filtered);
+    updateTransactionsSortIcons();
+}
+function updateTransactionsSortIcons() {
+    transactionsSortableHeaders.forEach(th => {
+        const icon = th.querySelector(".sort-icon");
+        if (th.dataset.sort === transactionsSortState.column) {
+            icon.textContent = transactionsSortState.direction === "desc" ? "▼" : "▲";
+        } else {
+            icon.textContent = "";
+        }
+    });
 }
 
+transactionsSortableHeaders.forEach(th => {
+    th.addEventListener("click", () => {
+        const column = th.dataset.sort;
+        if (transactionsSortState.column === column) {
+            transactionsSortState.direction = transactionsSortState.direction === "desc" ? "asc" : "desc";
+        } else {
+            transactionsSortState.column = column;
+            transactionsSortState.direction = "desc";
+        }
+        applyTransactionsFilter();
+    });
+});
+
 transactionsSearchInput.addEventListener("input", applyTransactionsFilter);
+transactionsProductTypeSelect.addEventListener("change", applyTransactionsFilter);
+transactionsBranchSelect.addEventListener("change", applyTransactionsFilter);
+
+transactionsDateRangeSelect.addEventListener("change", () => {
+    if (transactionsDateRangeSelect.value === "custom") {
+        transactionsCustomDateFieldsWrapper.classList.remove("hidden");
+    } else {
+        transactionsCustomDateFieldsWrapper.classList.add("hidden");
+    }
+    applyTransactionsFilter();
+});
+
+transactionsDateFromInput.addEventListener("change", applyTransactionsFilter);
+transactionsDateToInput.addEventListener("change", applyTransactionsFilter);
 
 function renderTransactionsTable(soldItems) {
     transactionsTableBody.innerHTML = "";
