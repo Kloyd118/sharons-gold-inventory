@@ -47,6 +47,9 @@
             <button class="nav-btn" data-target="transactions-view">
               <span class="nav-icon">⇄</span> Transactions
             </button>
+            <button class="nav-btn" data-target="reports-view">
+              <span class="nav-icon">▧</span> Reports
+            </button>
           </nav>
         </div>
         <button id="logout-btn" class="btn btn-ghost">Logout</button>
@@ -381,6 +384,56 @@
             <p id="transactions-empty-state" class="empty-state hidden">No products sold yet.</p>
           </div>
         </section>
+
+        <section id="reports-view" class="view hidden">
+          <div class="view-header">
+            <div>
+              <h1>Reports</h1>
+              <p class="view-subtitle">Expenses and deposits log</p>
+            </div>
+            <div class="view-actions">
+              <button id="open-deposit-modal" class="btn btn-ghost">+ Deposit</button>
+              <button id="open-expense-modal" class="btn btn-primary">+ Expense</button>
+            </div>
+          </div>
+
+          <div class="filter-bar" id="reports-filter-bar">
+            <div class="filter-field">
+              <label for="filter-reports-branch">Branch</label>
+              <select id="filter-reports-branch">
+                <option value="all">All Branches</option>
+                <option value="Monkayo">Monkayo</option>
+                <option value="Samal">Samal</option>
+                <option value="Sugod">Sugod</option>
+              </select>
+            </div>
+
+            <div class="filter-field">
+              <label for="filter-reports-date-range">Date</label>
+              <select id="filter-reports-date-range">
+                <option value="all">All Time</option>
+                <option value="today">This Day</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            <div class="filter-field custom-date-fields hidden" id="reports-custom-date-fields">
+              <label for="filter-reports-date-from">From</label>
+              <input type="date" id="filter-reports-date-from" />
+              <label for="filter-reports-date-to">To</label>
+              <input type="date" id="filter-reports-date-to" />
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Recent Activity</p>
+            <ul class="activity-list" id="reports-activity-list"></ul>
+            <p id="reports-activity-empty" class="empty-state hidden">No expenses or deposits recorded yet.</p>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -683,6 +736,63 @@
       <div class="modal-actions">
         <button type="button" id="cancel-add-user" class="btn btn-ghost">Cancel</button>
         <button type="submit" class="btn btn-primary">Save User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Expense Modal -->
+<div id="expense-modal-overlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Add Expense</h2>
+      <button id="close-expense-modal" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <form id="expense-form">
+      <label for="expense-branch">Branch</label>
+      <select id="expense-branch" required>
+        <option value="" disabled selected>Select branch</option>
+        <option value="Monkayo">Monkayo</option>
+        <option value="Samal">Samal</option>
+        <option value="Sugod">Sugod</option>
+      </select>
+
+      <label for="expense-transaction">Transaction</label>
+      <input id="expense-transaction" type="text" placeholder="e.g. Bought packaging supplies" required />
+
+      <label for="expense-amount">Amount</label>
+      <input id="expense-amount" type="number" step="0.01" min="0" placeholder="e.g. 500" required />
+
+      <div class="modal-actions">
+        <button type="button" id="cancel-expense-modal" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Deposit Modal -->
+<div id="deposit-modal-overlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Add Deposit</h2>
+      <button id="close-deposit-modal" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <form id="deposit-form">
+      <label for="deposit-branch">Branch</label>
+      <select id="deposit-branch" required>
+        <option value="" disabled selected>Select branch</option>
+        <option value="Monkayo">Monkayo</option>
+        <option value="Samal">Samal</option>
+        <option value="Sugod">Sugod</option>
+      </select>
+
+      <label for="deposit-amount">Amount</label>
+      <input id="deposit-amount" type="number" step="0.01" min="0" placeholder="e.g. 5000" required />
+
+      <div class="modal-actions">
+        <button type="button" id="cancel-deposit-modal" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Deposit</button>
       </div>
     </form>
   </div>

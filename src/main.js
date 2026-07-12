@@ -115,9 +115,32 @@ async function ensureUsersTable() {
         );
     }
 }
+
+async function ensureExpensesTable() {
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT,
+            branch TEXT,
+            transaction_text TEXT,
+            amount REAL,
+            date TEXT
+        )
+    `);
+
+    await addMissingColumns("expenses", [
+        { name: "type", type: "TEXT" },
+        { name: "branch", type: "TEXT" },
+        { name: "transaction_text", type: "TEXT" },
+        { name: "amount", type: "REAL" },
+        { name: "date", type: "TEXT" }
+    ]);
+}
 await ensureInventoryTable();
 
 await ensureUsersTable();
+
+await ensureExpensesTable();
 
 
 const loginScreen = document.querySelector("#login-screen");
@@ -167,6 +190,28 @@ const soldConfirmStep = document.querySelector("#sold-confirm-step");
 const soldDiscountType = document.querySelector("#sold-discount-type");
 const soldDiscountValue = document.querySelector("#sold-discount-value");
 const soldDetailFinalPrice = document.querySelector("#sold-detail-final-price");
+
+// Reports elements
+const openExpenseModalBtn = document.querySelector("#open-expense-modal");
+const closeExpenseModalBtn = document.querySelector("#close-expense-modal");
+const cancelExpenseModalBtn = document.querySelector("#cancel-expense-modal");
+const expenseModalOverlay = document.querySelector("#expense-modal-overlay");
+const expenseForm = document.querySelector("#expense-form");
+
+const openDepositModalBtn = document.querySelector("#open-deposit-modal");
+const closeDepositModalBtn = document.querySelector("#close-deposit-modal");
+const cancelDepositModalBtn = document.querySelector("#cancel-deposit-modal");
+const depositModalOverlay = document.querySelector("#deposit-modal-overlay");
+const depositForm = document.querySelector("#deposit-form");
+
+const reportsBranchSelect = document.querySelector("#filter-reports-branch");
+const reportsDateRangeSelect = document.querySelector("#filter-reports-date-range");
+const reportsCustomDateFieldsWrapper = document.querySelector("#reports-custom-date-fields");
+const reportsDateFromInput = document.querySelector("#filter-reports-date-from");
+const reportsDateToInput = document.querySelector("#filter-reports-date-to");
+const reportsActivityList = document.querySelector("#reports-activity-list");
+const reportsActivityEmpty = document.querySelector("#reports-activity-empty");
+let currentExpenses = [];
 
 // Dashboard elements
 const salesTrendCanvas = document.querySelector("#sales-trend-chart");
@@ -309,6 +354,10 @@ navBtns.forEach(btn => {
         if (target.dataset.target === "transactions-view") {
             loadTransactions();
         }
+        if (target.dataset.target === "reports-view") {
+            loadReports();
+        }
+
     });
 });
 
@@ -360,6 +409,15 @@ document.addEventListener("keydown", (e) => {
         if (!addWizardOverlay.classList.contains("hidden")) {
             closeAddWizard();
         }
+        if (!addUserModalOverlay.classList.contains("hidden")) {
+            closeAddUserModal();
+        }
+        if (!expenseModalOverlay.classList.contains("hidden")) {
+            closeExpenseModal();
+        }
+        if (!depositModalOverlay.classList.contains("hidden")) {
+            closeDepositModal();
+        }
     }
 });
 
@@ -398,6 +456,9 @@ function refreshSecondaryViewsIfVisible() {
     }
     if (!document.getElementById("transactions-view").classList.contains("hidden")) {
         loadTransactions();
+    }
+    if (!document.getElementById("reports-view").classList.contains("hidden")) {
+        loadReports();
     }
 }
 
@@ -1002,6 +1063,7 @@ function formatDiscount(item) {
 // ---------- Dashboard ----------
 async function loadDashboard() {
     const soldItems = await db.select("SELECT * FROM sold_items ORDER BY date_sold DESC, id DESC");
+    currentExpenses = await db.select("SELECT * FROM expenses ORDER BY date DESC, id DESC");
 
     renderKpiCards(soldItems);
     renderBestSeller(soldItems);
@@ -1015,9 +1077,11 @@ function summarizePeriod(soldItems, startDateStr, endDateStr) {
 
     const revenue = inRange.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
     const cost = inRange.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-    const profit = inRange.reduce((sum, item) => sum + (Number(item.profit) || 0), 0);
+    const grossProfit = inRange.reduce((sum, item) => sum + (Number(item.profit) || 0), 0);
+    const expenses = sumExpensesInRange(startDateStr, endDateStr);
+    const profit = grossProfit - expenses;
 
-    return { count: inRange.length, revenue, cost, profit };
+    return { count: inRange.length, revenue, cost, profit, expenses };
 }
 
 function renderKpiCards(soldItems) {
@@ -1278,10 +1342,166 @@ function renderTransactionsTable(soldItems) {
     });
 }
 
+// ---------- Reports (Expenses & Deposits) ----------
+function openExpenseModal() {
+    expenseForm.reset();
+    expenseModalOverlay.classList.remove("hidden");
+}
+function closeExpenseModal() {
+    expenseModalOverlay.classList.add("hidden");
+    expenseForm.reset();
+}
+openExpenseModalBtn.addEventListener("click", openExpenseModal);
+closeExpenseModalBtn.addEventListener("click", closeExpenseModal);
+cancelExpenseModalBtn.addEventListener("click", closeExpenseModal);
+expenseModalOverlay.addEventListener("click", (e) => {
+    if (e.target === expenseModalOverlay) closeExpenseModal();
+});
+
+expenseForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const branch = document.querySelector("#expense-branch").value;
+    const transactionText = document.querySelector("#expense-transaction").value;
+    const amount = parseFloat(document.querySelector("#expense-amount").value) || 0;
+    const today = new Date().toISOString().split("T")[0];
+
+    await db.execute(
+        "INSERT INTO expenses (type, branch, transaction_text, amount, date) VALUES ($1, $2, $3, $4, $5)",
+        ["expense", branch, transactionText, amount, today]
+    );
+
+    closeExpenseModal();
+    loadReports();
+    refreshSecondaryViewsIfVisible();
+});
+
+function openDepositModal() {
+    depositForm.reset();
+    depositModalOverlay.classList.remove("hidden");
+}
+function closeDepositModal() {
+    depositModalOverlay.classList.add("hidden");
+    depositForm.reset();
+}
+openDepositModalBtn.addEventListener("click", openDepositModal);
+closeDepositModalBtn.addEventListener("click", closeDepositModal);
+cancelDepositModalBtn.addEventListener("click", closeDepositModal);
+depositModalOverlay.addEventListener("click", (e) => {
+    if (e.target === depositModalOverlay) closeDepositModal();
+});
+
+depositForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const branch = document.querySelector("#deposit-branch").value;
+    const amount = parseFloat(document.querySelector("#deposit-amount").value) || 0;
+    const today = new Date().toISOString().split("T")[0];
+
+    await db.execute(
+        "INSERT INTO expenses (type, branch, transaction_text, amount, date) VALUES ($1, $2, $3, $4, $5)",
+        ["deposit", branch, "", amount, today]
+    );
+
+    closeDepositModal();
+    loadReports();
+    refreshSecondaryViewsIfVisible();
+});
+
+reportsDateRangeSelect.addEventListener("change", () => {
+    if (reportsDateRangeSelect.value === "custom") {
+        reportsCustomDateFieldsWrapper.classList.remove("hidden");
+    } else {
+        reportsCustomDateFieldsWrapper.classList.add("hidden");
+    }
+    applyReportsFilter();
+});
+reportsBranchSelect.addEventListener("change", applyReportsFilter);
+reportsDateFromInput.addEventListener("change", applyReportsFilter);
+reportsDateToInput.addEventListener("change", applyReportsFilter);
+
+async function loadReports() {
+    currentExpenses = await db.select("SELECT * FROM expenses ORDER BY date DESC, id DESC");
+    applyReportsFilter();
+}
+
+function applyReportsFilter() {
+    const branchFilter = reportsBranchSelect.value;
+    const dateMode = reportsDateRangeSelect.value;
+
+    let filtered = currentExpenses;
+
+    if (branchFilter !== "all") {
+        filtered = filtered.filter(e => e.branch === branchFilter);
+    }
+
+    if (dateMode !== "all") {
+        const { todayStr, weekStartStr, monthStartStr, yearStartStr } = getDateBoundaries();
+        filtered = filtered.filter(e => {
+            const d = e.date;
+            if (dateMode === "today") return d === todayStr;
+            if (dateMode === "week") return d >= weekStartStr && d <= todayStr;
+            if (dateMode === "month") return d >= monthStartStr && d <= todayStr;
+            if (dateMode === "year") return d >= yearStartStr && d <= todayStr;
+            if (dateMode === "custom") {
+                const from = reportsDateFromInput.value;
+                const to = reportsDateToInput.value;
+                if (from && d < from) return false;
+                if (to && d > to) return false;
+                return true;
+            }
+            return true;
+        });
+    }
+
+    renderReportsActivity(filtered);
+}
+
+function renderReportsActivity(expenseItems) {
+    reportsActivityList.innerHTML = "";
+
+    if (expenseItems.length === 0) {
+        reportsActivityEmpty.classList.remove("hidden");
+        return;
+    }
+    reportsActivityEmpty.classList.add("hidden");
+
+    expenseItems.forEach(entry => {
+        const li = document.createElement("li");
+        li.className = "activity-item";
+
+        const icon = document.createElement("span");
+        icon.className = "activity-icon " + (entry.type === "deposit" ? "activity-icon-added" : "activity-icon-sold");
+        icon.textContent = entry.type === "deposit" ? "+" : "−";
+
+        const text = document.createElement("span");
+        text.className = "activity-text";
+        text.textContent = entry.type === "deposit"
+            ? `Deposit — ${entry.branch} — ${formatCurrency(entry.amount)}`
+            : `Expense: ${entry.transaction_text} — ${entry.branch} — ${formatCurrency(entry.amount)}`;
+
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "activity-date";
+        dateSpan.textContent = formatDate(entry.date);
+
+        li.appendChild(icon);
+        li.appendChild(text);
+        li.appendChild(dateSpan);
+        reportsActivityList.appendChild(li);
+    });
+}
+
+// Sums only 'expense' type rows (not deposits) within a date range — used to
+// subtract expenses from Profit totals on Dashboard and Home.
+function sumExpensesInRange(startDateStr, endDateStr) {
+    return currentExpenses
+        .filter(e => e.type === "expense" && e.date >= startDateStr && e.date <= endDateStr)
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+}
+
 // ---------- Home ----------
 async function loadHome() {
     const inventoryItems = await db.select("SELECT * FROM inventory");
     const soldItems = await db.select("SELECT * FROM sold_items ORDER BY date_sold DESC, id DESC");
+    currentExpenses = await db.select("SELECT * FROM expenses ORDER BY date DESC, id DESC");
 
     renderHomeDate();
     renderHomeStats(inventoryItems, soldItems);
@@ -1309,7 +1529,9 @@ function renderHomeStats(inventoryItems, soldItems) {
     homeStatSoldMonth.textContent = soldThisMonth.length;
     homeStatSoldMonthSub.textContent = `${soldThisMonth.length} item${soldThisMonth.length === 1 ? "" : "s"} sold`;
 
-    const profitThisMonth = soldThisMonth.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+    const grossProfitThisMonth = soldThisMonth.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+    const expensesThisMonth = sumExpensesInRange(monthStartStr, todayStr);
+    const profitThisMonth = grossProfitThisMonth - expensesThisMonth;
     homeStatProfitMonth.textContent = formatCurrency(profitThisMonth);
 
     // This week vs last week profit, to show whether the business is trending up or down.
@@ -1323,10 +1545,10 @@ function renderHomeStats(inventoryItems, soldItems) {
 
     const thisWeekProfit = soldItems
         .filter(i => i.date_sold >= weekStartStr && i.date_sold <= todayStr)
-        .reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+        .reduce((sum, i) => sum + (Number(i.profit) || 0), 0) - sumExpensesInRange(weekStartStr, todayStr);
     const prevWeekProfit = soldItems
         .filter(i => i.date_sold >= prevWeekStartStr && i.date_sold <= prevWeekEndStr)
-        .reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+        .reduce((sum, i) => sum + (Number(i.profit) || 0), 0) - sumExpensesInRange(prevWeekStartStr, prevWeekEndStr);
 
     const trendEl = homeStatProfitTrend;
     trendEl.classList.remove("trend-up", "trend-down", "trend-neutral");
