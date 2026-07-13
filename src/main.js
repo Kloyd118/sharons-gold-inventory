@@ -249,6 +249,29 @@ const homeActivityEmpty = document.querySelector("#home-activity-empty");
 let homePopularityChart = null;
 let homeProfitTrendChart = null;
 
+const branchNavToggle = document.querySelector("#branch-nav-toggle");
+const branchSubmenu = document.querySelector("#branch-submenu");
+const branchViewTitle = document.querySelector("#branch-view-title");
+const branchCashOnHand = document.querySelector("#branch-cash-on-hand");
+const branchStockCount = document.querySelector("#branch-stock-count");
+const branchUserList = document.querySelector("#branch-user-list");
+const branchInventoryList = document.querySelector("#branch-inventory-list");
+const branchInventoryEmpty = document.querySelector("#branch-inventory-empty");
+const branchSoldList = document.querySelector("#branch-sold-list");
+const branchSoldEmpty = document.querySelector("#branch-sold-empty");
+const branchExpensesList = document.querySelector("#branch-expenses-list");
+const branchExpensesEmpty = document.querySelector("#branch-expenses-empty");
+
+const branchOpenSoldModalBtn = document.querySelector("#branch-open-sold-modal");
+const branchOpenExpenseModalBtn = document.querySelector("#branch-open-expense-modal");
+const branchOpenDepositModalBtn = document.querySelector("#branch-open-deposit-modal");
+const expenseBranchWrapper = document.querySelector("#expense-branch-wrapper");
+const depositBranchWrapper = document.querySelector("#deposit-branch-wrapper");
+
+let selectedBranch = null;
+
+
+
 const CHART_PALETTE = ["#c9a24a", "#1e293b", "#9c6b30", "#6b8fae", "#a3a3a3", "#8a4f6b"];
 
 // Holds the item currently pending sale confirmation.
@@ -336,6 +359,33 @@ logoutBtn.addEventListener("click", () => {
 });
 
 // ---------- Navigation ----------
+
+
+branchNavToggle.addEventListener("click", () => {
+    branchSubmenu.classList.toggle("hidden");
+});
+
+document.querySelectorAll(".branch-submenu-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        selectedBranch = btn.dataset.branch;
+
+        document.querySelectorAll(".branch-submenu-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        navBtns.forEach(b => b.classList.remove("active"));
+        views.forEach(v => v.classList.add("hidden"));
+        document.getElementById("branch-view").classList.remove("hidden");
+
+        loadBranchView();
+    });
+});
+
+
+
+
+
+
+
 navBtns.forEach(btn => {
     btn.addEventListener("click", (e) => {
         const target = e.currentTarget;
@@ -459,6 +509,9 @@ function refreshSecondaryViewsIfVisible() {
     }
     if (!document.getElementById("reports-view").classList.contains("hidden")) {
         loadReports();
+    }
+    if (!document.getElementById("branch-view").classList.contains("hidden")) {
+        loadBranchView();
     }
 }
 
@@ -1350,6 +1403,7 @@ function openExpenseModal() {
 function closeExpenseModal() {
     expenseModalOverlay.classList.add("hidden");
     expenseForm.reset();
+    expenseBranchWrapper.classList.remove("hidden");
 }
 openExpenseModalBtn.addEventListener("click", openExpenseModal);
 closeExpenseModalBtn.addEventListener("click", closeExpenseModal);
@@ -1382,6 +1436,7 @@ function openDepositModal() {
 function closeDepositModal() {
     depositModalOverlay.classList.add("hidden");
     depositForm.reset();
+    depositBranchWrapper.classList.remove("hidden");
 }
 openDepositModalBtn.addEventListener("click", openDepositModal);
 closeDepositModalBtn.addEventListener("click", closeDepositModal);
@@ -1496,6 +1551,151 @@ function sumExpensesInRange(startDateStr, endDateStr) {
         .filter(e => e.type === "expense" && e.date >= startDateStr && e.date <= endDateStr)
         .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 }
+
+
+branchOpenSoldModalBtn.addEventListener("click", openSoldModal);
+
+branchOpenExpenseModalBtn.addEventListener("click", () => {
+    openExpenseModal();
+    document.querySelector("#expense-branch").value = selectedBranch;
+    expenseBranchWrapper.classList.add("hidden");
+});
+
+branchOpenDepositModalBtn.addEventListener("click", () => {
+    openDepositModal();
+    document.querySelector("#deposit-branch").value = selectedBranch;
+    depositBranchWrapper.classList.add("hidden");
+});
+
+
+
+// ---------- Branch View ----------
+async function loadBranchView() {
+    if (!selectedBranch) return;
+    branchViewTitle.textContent = `${selectedBranch} Branch`;
+
+    const inventoryItems = await db.select(
+        "SELECT * FROM inventory WHERE branch = $1 ORDER BY control_number DESC",
+        [selectedBranch]
+    );
+    const soldItems = await db.select(
+        "SELECT * FROM sold_items WHERE branch = $1 ORDER BY date_sold DESC, id DESC",
+        [selectedBranch]
+    );
+    const expenseItems = await db.select(
+        "SELECT * FROM expenses WHERE branch = $1 ORDER BY date DESC, id DESC",
+        [selectedBranch]
+    );
+    const assignedUsers = await db.select(
+        "SELECT name, role FROM users WHERE location = $1 OR location = 'Any' ORDER BY role",
+        [selectedBranch]
+    );
+
+    renderBranchCashOnHand(soldItems, expenseItems);
+    renderBranchStock(inventoryItems);
+    renderBranchUsers(assignedUsers);
+    renderBranchSold(soldItems);
+    renderBranchExpenses(expenseItems);
+}
+
+function renderBranchCashOnHand(soldItems, expenseItems) {
+    const cashIn = soldItems.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+    const cashOut = expenseItems.reduce((sum, e) => sum + (Number(e.amount) || 0), 0); // expense + deposit both reduce cash
+    branchCashOnHand.textContent = formatCurrency(cashIn - cashOut);
+}
+
+function renderBranchStock(inventoryItems) {
+    branchStockCount.textContent = inventoryItems.length;
+    branchInventoryList.innerHTML = "";
+
+    if (inventoryItems.length === 0) {
+        branchInventoryEmpty.classList.remove("hidden");
+        return;
+    }
+    branchInventoryEmpty.classList.add("hidden");
+
+    inventoryItems.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${item.control_number}</td>
+            <td>${item.product_type}</td>
+            <td>${formatCurrency(item.price)}</td>
+            <td>${formatDate(item.date)}</td>
+        `;
+        branchInventoryList.appendChild(row);
+    });
+}
+
+function renderBranchUsers(users) {
+    branchUserList.innerHTML = "";
+    if (users.length === 0) {
+        branchUserList.innerHTML = "<li>No users assigned</li>";
+        return;
+    }
+    users.forEach(u => {
+        const li = document.createElement("li");
+        li.textContent = `${u.name} (${u.role})`;
+        branchUserList.appendChild(li);
+    });
+}
+
+function renderBranchSold(soldItems) {
+    branchSoldList.innerHTML = "";
+
+    if (soldItems.length === 0) {
+        branchSoldEmpty.classList.remove("hidden");
+        return;
+    }
+    branchSoldEmpty.classList.add("hidden");
+
+    soldItems.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${item.control_number}</td>
+            <td>${item.product_type}</td>
+            <td>${formatCurrency(item.price)}</td>
+            <td>${formatDate(item.date_sold)}</td>
+        `;
+        branchSoldList.appendChild(row);
+    });
+}
+
+function renderBranchExpenses(expenseItems) {
+    branchExpensesList.innerHTML = "";
+
+    if (expenseItems.length === 0) {
+        branchExpensesEmpty.classList.remove("hidden");
+        return;
+    }
+    branchExpensesEmpty.classList.add("hidden");
+
+    expenseItems.forEach(entry => {
+        const li = document.createElement("li");
+        li.className = "activity-item";
+
+        const icon = document.createElement("span");
+        icon.className = "activity-icon activity-icon-sold";
+        icon.textContent = entry.type === "deposit" ? "↓" : "−";
+
+        const text = document.createElement("span");
+        text.className = "activity-text";
+        text.textContent = entry.type === "deposit"
+            ? `Deposit — ${formatCurrency(entry.amount)}`
+            : `Expense: ${entry.transaction_text} — ${formatCurrency(entry.amount)}`;
+
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "activity-date";
+        dateSpan.textContent = formatDate(entry.date);
+
+        li.appendChild(icon);
+        li.appendChild(text);
+        li.appendChild(dateSpan);
+        branchExpensesList.appendChild(li);
+    });
+}
+
+
+
 
 // ---------- Home ----------
 async function loadHome() {

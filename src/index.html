@@ -50,6 +50,16 @@
             <button class="nav-btn" data-target="reports-view">
               <span class="nav-icon">▧</span> Reports
             </button>
+
+            <button class="nav-btn" id="branch-nav-toggle">
+              <span class="nav-icon">◈</span> Branch
+            </button>
+            <div class="branch-submenu hidden" id="branch-submenu">
+              <button class="branch-submenu-btn" data-branch="Monkayo">Monkayo</button>
+              <button class="branch-submenu-btn" data-branch="Samal">Samal</button>
+              <button class="branch-submenu-btn" data-branch="Sugod">Sugod</button>
+            </div>
+
           </nav>
         </div>
         <button id="logout-btn" class="btn btn-ghost">Logout</button>
@@ -119,6 +129,74 @@
             <p id="home-activity-empty" class="empty-state hidden">No recent activity yet.</p>
           </div>
         </section>
+
+
+
+
+        <section id="branch-view" class="view hidden">
+          <div class="view-header">
+            <div>
+              <h1 id="branch-view-title">Branch</h1>
+              <p class="view-subtitle">Overview for this branch</p>
+            </div>
+            <div class="view-actions">
+              <button id="branch-open-sold-modal" class="btn btn-ghost">Mark as Sold</button>
+              <button id="branch-open-deposit-modal" class="btn btn-ghost">+ Deposit</button>
+              <button id="branch-open-expense-modal" class="btn btn-primary">+ Expense</button>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="kpi-card kpi-card-highlight">
+              <p class="kpi-title">Cash on Hand</p>
+              <p class="best-seller-name" id="branch-cash-on-hand">0.00</p>
+              <p class="best-seller-sub">Sales in, minus expenses and deposits</p>
+            </div>
+            <div class="kpi-card">
+              <p class="kpi-title">Items In Stock</p>
+              <p class="home-stat-value" id="branch-stock-count">0</p>
+            </div>
+            <div class="kpi-card">
+              <p class="kpi-title">Assigned Users</p>
+              <ul class="branch-user-list" id="branch-user-list"></ul>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Inventory (Stock)</p>
+            <div class="table-wrapper">
+              <table id="branch-inventory-table">
+                <thead>
+                  <tr><th>Control No.</th><th>Product Type</th><th>Price</th><th>Date Added</th></tr>
+                </thead>
+                <tbody id="branch-inventory-list"></tbody>
+              </table>
+              <p id="branch-inventory-empty" class="empty-state hidden">No stock at this branch.</p>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Sold Items</p>
+            <div class="table-wrapper">
+              <table id="branch-sold-table">
+                <thead>
+                  <tr><th>Control No.</th><th>Product Type</th><th>Final Price</th><th>Date Sold</th></tr>
+                </thead>
+                <tbody id="branch-sold-list"></tbody>
+              </table>
+              <p id="branch-sold-empty" class="empty-state hidden">No items sold at this branch yet.</p>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Expenses & Deposits</p>
+            <ul class="activity-list" id="branch-expenses-list"></ul>
+            <p id="branch-expenses-empty" class="empty-state hidden">No expenses or deposits yet.</p>
+          </div>
+        </section>
+
+
+
 
         <section id="dashboard-view" class="view hidden">
           <div class="view-header">
@@ -749,13 +827,18 @@
       <button id="close-expense-modal" class="modal-close" aria-label="Close">&times;</button>
     </div>
     <form id="expense-form">
-      <label for="expense-branch">Branch</label>
-      <select id="expense-branch" required>
-        <option value="" disabled selected>Select branch</option>
-        <option value="Monkayo">Monkayo</option>
-        <option value="Samal">Samal</option>
-        <option value="Sugod">Sugod</option>
-      </select>
+
+      <div id="expense-branch-wrapper">
+        <label for="expense-branch">Branch</label>
+        <select id="expense-branch" required>
+          <option value="" disabled selected>Select branch</option>
+          <option value="Monkayo">Monkayo</option>
+          <option value="Samal">Samal</option>
+          <option value="Sugod">Sugod</option>
+        </select>
+      </div>
+
+
 
       <label for="expense-transaction">Transaction</label>
       <input id="expense-transaction" type="text" placeholder="e.g. Bought packaging supplies" required />
@@ -779,13 +862,19 @@
       <button id="close-deposit-modal" class="modal-close" aria-label="Close">&times;</button>
     </div>
     <form id="deposit-form">
-      <label for="deposit-branch">Branch</label>
-      <select id="deposit-branch" required>
-        <option value="" disabled selected>Select branch</option>
-        <option value="Monkayo">Monkayo</option>
-        <option value="Samal">Samal</option>
-        <option value="Sugod">Sugod</option>
-      </select>
+
+
+      <div id="deposit-branch-wrapper">
+        <label for="deposit-branch">Branch</label>
+        <select id="deposit-branch" required>
+          <option value="" disabled selected>Select branch</option>
+          <option value="Monkayo">Monkayo</option>
+          <option value="Samal">Samal</option>
+          <option value="Sugod">Sugod</option>
+        </select>
+      </div>
+
+
 
       <label for="deposit-amount">Amount</label>
       <input id="deposit-amount" type="number" step="0.01" min="0" placeholder="e.g. 5000" required />

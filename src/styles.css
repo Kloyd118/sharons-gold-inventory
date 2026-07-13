@@ -889,3 +889,27 @@ select:focus {
   width: auto;
   cursor: pointer;
 }
+
+
+.branch-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 1.8rem;
+  margin-top: 0.25rem;
+}
+
+.branch-submenu-btn {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.branch-submenu-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.branch-submenu-btn.active { background: var(--gold); color: #fff; }
+
+.branch-user-list { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.85rem; }
+.branch-user-list li { padding: 0.2rem 0; color: rgba(255,255,255,0.85); }
