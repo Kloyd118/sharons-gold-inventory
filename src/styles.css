@@ -912,4 +912,59 @@ select:focus {
 .branch-submenu-btn.active { background: var(--gold); color: #fff; }
 
 .branch-user-list { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.85rem; }
-.branch-user-list li { padding: 0.2rem 0; color: rgba(255,255,255,0.85); }
+.branch-user-list li { padding: 0.2rem 0; color: var(--navy); }
+
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rank-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.rank-item:last-child { border-bottom: none; }
+
+.rank-badge {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rank-item:nth-child(1) .rank-badge { background: var(--gold); }
+
+.rank-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.rank-info strong { color: var(--navy); font-size: 0.92rem; }
+.rank-sub { color: var(--text-muted); font-size: 0.78rem; }
+
+.rank-cash {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.balance-preview {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0 0;
+}
+.balance-preview strong {
+  color: var(--navy);
+}

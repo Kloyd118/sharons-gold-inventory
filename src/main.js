@@ -143,6 +143,10 @@ await ensureUsersTable();
 await ensureExpensesTable();
 
 
+
+const cashRankList = document.querySelector("#cash-rank-list");
+const cashRankEmpty = document.querySelector("#cash-rank-empty");
+
 const loginScreen = document.querySelector("#login-screen");
 const appLayout = document.querySelector("#app-layout");
 const loginForm = document.querySelector("#login-form");
@@ -253,6 +257,7 @@ const branchNavToggle = document.querySelector("#branch-nav-toggle");
 const branchSubmenu = document.querySelector("#branch-submenu");
 const branchViewTitle = document.querySelector("#branch-view-title");
 const branchCashOnHand = document.querySelector("#branch-cash-on-hand");
+const branchProfit = document.querySelector("#branch-profit");
 const branchStockCount = document.querySelector("#branch-stock-count");
 const branchUserList = document.querySelector("#branch-user-list");
 const branchInventoryList = document.querySelector("#branch-inventory-list");
@@ -269,6 +274,7 @@ const expenseBranchWrapper = document.querySelector("#expense-branch-wrapper");
 const depositBranchWrapper = document.querySelector("#deposit-branch-wrapper");
 
 let selectedBranch = null;
+let currentUser = null; // Holds the logged-in user's row (name, role, location) after login
 
 
 
@@ -342,44 +348,83 @@ loginForm.addEventListener("submit", async (e) => {
     );
 
     if (results.length > 0) {
+        currentUser = results[0];
+
         loginError.textContent = "";
         loginForm.reset();
         loginScreen.classList.add("hidden");
         appLayout.classList.remove("hidden");
-        loadItems();
-        loadHome();
+
+        applyRolePermissions();
+
+        // Employees land straight on their branch — no need to preload other pages.
+        if (currentUser.role !== "Employee") {
+            loadItems();
+            loadHome();
+        }
     } else {
         loginError.textContent = "Invalid username or password.";
     }
 });
 
+
 logoutBtn.addEventListener("click", () => {
     appLayout.classList.add("hidden");
     loginScreen.classList.remove("hidden");
+    currentUser = null;
+    document.querySelector(".sidebar nav").classList.remove("hidden");
 });
+
+
+
+// Employees are locked to only their assigned branch — no Home, Dashboard,
+// Inventory, Transactions, Reports, or ability to switch branches.
+function applyRolePermissions() {
+    const isEmployee = currentUser && currentUser.role === "Employee";
+    const navContainer = document.querySelector(".sidebar nav");
+
+    if (isEmployee) {
+        navContainer.classList.add("hidden");
+        selectBranch(currentUser.location);
+    } else {
+        navContainer.classList.remove("hidden");
+    }
+}
 
 // ---------- Navigation ----------
 
 
 branchNavToggle.addEventListener("click", () => {
     branchSubmenu.classList.toggle("hidden");
-});
 
-document.querySelectorAll(".branch-submenu-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-        selectedBranch = btn.dataset.branch;
-
-        document.querySelectorAll(".branch-submenu-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-
+    // First time opening Branch: default to Monkayo instead of leaving it blank.
+    if (!selectedBranch) {
+        selectBranch("Monkayo");
+    } else {
+        // Already had a branch selected before: just show that same branch view again.
         navBtns.forEach(b => b.classList.remove("active"));
         views.forEach(v => v.classList.add("hidden"));
         document.getElementById("branch-view").classList.remove("hidden");
+    }
+});;
 
-        loadBranchView();
+function selectBranch(branchName) {
+    selectedBranch = branchName;
+
+    document.querySelectorAll(".branch-submenu-btn").forEach(b => {
+        b.classList.toggle("active", b.dataset.branch === branchName);
     });
-});
 
+    navBtns.forEach(b => b.classList.remove("active"));
+    views.forEach(v => v.classList.add("hidden"));
+    document.getElementById("branch-view").classList.remove("hidden");
+
+    loadBranchView();
+}
+
+document.querySelectorAll(".branch-submenu-btn").forEach(btn => {
+    btn.addEventListener("click", () => selectBranch(btn.dataset.branch));
+});
 
 
 
@@ -389,6 +434,8 @@ document.querySelectorAll(".branch-submenu-btn").forEach(btn => {
 navBtns.forEach(btn => {
     btn.addEventListener("click", (e) => {
         const target = e.currentTarget;
+        if (!target.dataset.target) return;
+
         navBtns.forEach(b => b.classList.remove("active"));
         target.classList.add("active");
 
@@ -1121,6 +1168,7 @@ async function loadDashboard() {
     renderKpiCards(soldItems);
     renderBestSeller(soldItems);
     renderSalesTrendChart(soldItems);
+    renderCashRanking();
 }
 
 function summarizePeriod(soldItems, startDateStr, endDateStr) {
@@ -1251,6 +1299,70 @@ function renderSalesTrendChart(soldItems) {
         }
     });
 }
+
+
+async function renderCashRanking() {
+    const users = await db.select("SELECT * FROM users WHERE role != 'admin' ORDER BY name");
+    const soldItems = await db.select("SELECT branch, price FROM sold_items");
+    const expenseItems = await db.select("SELECT branch, amount FROM expenses");
+
+    // Cash on Hand per branch: sales in, minus expenses/deposits out.
+    const cashByBranch = {};
+    soldItems.forEach(item => {
+        cashByBranch[item.branch] = (cashByBranch[item.branch] || 0) + (Number(item.price) || 0);
+    });
+    expenseItems.forEach(e => {
+        cashByBranch[e.branch] = (cashByBranch[e.branch] || 0) - (Number(e.amount) || 0);
+    });
+
+    // Only users assigned to one specific branch can be ranked this way
+    // ("Any" location has no single branch's cash to attribute to them).
+    const ranked = users
+        .filter(u => u.location && u.location !== "Any")
+        .map(u => ({
+            name: u.name,
+            role: u.role,
+            branch: u.location,
+            cash: cashByBranch[u.location] || 0
+        }))
+        .sort((a, b) => b.cash - a.cash);
+
+    renderCashRankList(ranked);
+}
+
+function renderCashRankList(ranked) {
+    cashRankList.innerHTML = "";
+
+    if (ranked.length === 0) {
+        cashRankEmpty.classList.remove("hidden");
+        return;
+    }
+    cashRankEmpty.classList.add("hidden");
+
+    ranked.forEach((u, index) => {
+        const li = document.createElement("li");
+        li.className = "rank-item";
+
+        const badge = document.createElement("span");
+        badge.className = "rank-badge";
+        badge.textContent = index + 1;
+
+        const info = document.createElement("span");
+        info.className = "rank-info";
+        info.innerHTML = `<strong>${u.name}</strong><span class="rank-sub">${u.role} — ${u.branch}</span>`;
+
+        const cash = document.createElement("span");
+        cash.className = "rank-cash";
+        cash.textContent = formatCurrency(u.cash);
+
+        li.appendChild(badge);
+        li.appendChild(info);
+        li.appendChild(cash);
+        cashRankList.appendChild(li);
+    });
+}
+
+
 
 // ---------- Transactions ----------
 async function loadTransactions() {
@@ -1395,16 +1507,62 @@ function renderTransactionsTable(soldItems) {
     });
 }
 
+
+// Live Cash on Hand for one branch: sold prices minus everything already
+// recorded in expenses (expense + deposit rows both reduce it).
+async function getBranchCashOnHand(branch) {
+    if (!branch) return 0;
+    const soldItems = await db.select("SELECT price FROM sold_items WHERE branch = $1", [branch]);
+    const expenseItems = await db.select("SELECT amount FROM expenses WHERE branch = $1", [branch]);
+    const cashIn = soldItems.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+    const cashOut = expenseItems.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    return cashIn - cashOut;
+}
+
+let expenseModalCashOnHand = 0;
+let depositModalCashOnHand = 0;
+
 // ---------- Reports (Expenses & Deposits) ----------
 function openExpenseModal() {
     expenseForm.reset();
     expenseModalOverlay.classList.remove("hidden");
+    updateExpenseBalanceDisplay();
 }
 function closeExpenseModal() {
     expenseModalOverlay.classList.add("hidden");
     expenseForm.reset();
     expenseBranchWrapper.classList.remove("hidden");
+    document.querySelector("#expense-balance-error").textContent = "";
 }
+
+async function refreshExpenseBalance() {
+    const branch = document.querySelector("#expense-branch").value;
+    expenseModalCashOnHand = await getBranchCashOnHand(branch);
+    updateExpenseBalanceDisplay();
+}
+
+function updateExpenseBalanceDisplay() {
+    const amount = parseFloat(document.querySelector("#expense-amount").value) || 0;
+    const remaining = expenseModalCashOnHand - amount;
+    document.querySelector("#expense-remaining-balance").textContent = formatCurrency(Math.max(0, remaining));
+
+    const errorEl = document.querySelector("#expense-balance-error");
+    const saveBtn = document.querySelector("#save-expense-btn");
+
+    if (remaining < 0) {
+        errorEl.textContent = "Insufficient balance.";
+        saveBtn.disabled = true;
+    } else {
+        errorEl.textContent = "";
+        saveBtn.disabled = false;
+    }
+}
+
+document.querySelector("#expense-branch").addEventListener("change", refreshExpenseBalance);
+document.querySelector("#expense-amount").addEventListener("input", updateExpenseBalanceDisplay);
+
+
+
 openExpenseModalBtn.addEventListener("click", openExpenseModal);
 closeExpenseModalBtn.addEventListener("click", closeExpenseModal);
 cancelExpenseModalBtn.addEventListener("click", closeExpenseModal);
@@ -1419,6 +1577,11 @@ expenseForm.addEventListener("submit", async (e) => {
     const amount = parseFloat(document.querySelector("#expense-amount").value) || 0;
     const today = new Date().toISOString().split("T")[0];
 
+    if (expenseModalCashOnHand - amount < 0) {
+        document.querySelector("#expense-balance-error").textContent = "Insufficient balance.";
+        return;
+    }
+
     await db.execute(
         "INSERT INTO expenses (type, branch, transaction_text, amount, date) VALUES ($1, $2, $3, $4, $5)",
         ["expense", branch, transactionText, amount, today]
@@ -1432,12 +1595,42 @@ expenseForm.addEventListener("submit", async (e) => {
 function openDepositModal() {
     depositForm.reset();
     depositModalOverlay.classList.remove("hidden");
+    updateDepositBalanceDisplay();
 }
 function closeDepositModal() {
     depositModalOverlay.classList.add("hidden");
     depositForm.reset();
     depositBranchWrapper.classList.remove("hidden");
+    document.querySelector("#deposit-balance-error").textContent = "";
 }
+
+async function refreshDepositBalance() {
+    const branch = document.querySelector("#deposit-branch").value;
+    depositModalCashOnHand = await getBranchCashOnHand(branch);
+    updateDepositBalanceDisplay();
+}
+
+function updateDepositBalanceDisplay() {
+    const amount = parseFloat(document.querySelector("#deposit-amount").value) || 0;
+    const remaining = depositModalCashOnHand - amount;
+    document.querySelector("#deposit-remaining-balance").textContent = formatCurrency(Math.max(0, remaining));
+
+    const errorEl = document.querySelector("#deposit-balance-error");
+    const saveBtn = document.querySelector("#save-deposit-btn");
+
+    if (remaining < 0) {
+        errorEl.textContent = "Insufficient balance.";
+        saveBtn.disabled = true;
+    } else {
+        errorEl.textContent = "";
+        saveBtn.disabled = false;
+    }
+}
+
+document.querySelector("#deposit-branch").addEventListener("change", refreshDepositBalance);
+document.querySelector("#deposit-amount").addEventListener("input", updateDepositBalanceDisplay);
+
+
 openDepositModalBtn.addEventListener("click", openDepositModal);
 closeDepositModalBtn.addEventListener("click", closeDepositModal);
 cancelDepositModalBtn.addEventListener("click", closeDepositModal);
@@ -1450,6 +1643,10 @@ depositForm.addEventListener("submit", async (e) => {
     const branch = document.querySelector("#deposit-branch").value;
     const amount = parseFloat(document.querySelector("#deposit-amount").value) || 0;
     const today = new Date().toISOString().split("T")[0];
+    if (depositModalCashOnHand - amount < 0) {
+        document.querySelector("#deposit-balance-error").textContent = "Insufficient balance.";
+        return;
+    }
 
     await db.execute(
         "INSERT INTO expenses (type, branch, transaction_text, amount, date) VALUES ($1, $2, $3, $4, $5)",
@@ -1559,12 +1756,14 @@ branchOpenExpenseModalBtn.addEventListener("click", () => {
     openExpenseModal();
     document.querySelector("#expense-branch").value = selectedBranch;
     expenseBranchWrapper.classList.add("hidden");
+    refreshExpenseBalance();
 });
 
 branchOpenDepositModalBtn.addEventListener("click", () => {
     openDepositModal();
     document.querySelector("#deposit-branch").value = selectedBranch;
     depositBranchWrapper.classList.add("hidden");
+    refreshDepositBalance();
 });
 
 
@@ -1587,7 +1786,7 @@ async function loadBranchView() {
         [selectedBranch]
     );
     const assignedUsers = await db.select(
-        "SELECT name, role FROM users WHERE location = $1 OR location = 'Any' ORDER BY role",
+        "SELECT name, role FROM users WHERE location = $1 ORDER BY role",
         [selectedBranch]
     );
 
@@ -1599,9 +1798,15 @@ async function loadBranchView() {
 }
 
 function renderBranchCashOnHand(soldItems, expenseItems) {
+    // Cash on Hand: money physically in/out — post-discount sale prices minus expenses/deposits.
     const cashIn = soldItems.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
     const cashOut = expenseItems.reduce((sum, e) => sum + (Number(e.amount) || 0), 0); // expense + deposit both reduce cash
     branchCashOnHand.textContent = formatCurrency(cashIn - cashOut);
+
+    // Profit: actual gain/loss per item (selling price minus cost), then minus expenses too.
+    // Can go negative — e.g. an item bought for 10 and sold for 5 shows a -5 profit.
+    const grossProfit = soldItems.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+    branchProfit.textContent = formatCurrency(grossProfit - cashOut);
 }
 
 function renderBranchStock(inventoryItems) {

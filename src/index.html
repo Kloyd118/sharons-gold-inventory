@@ -148,9 +148,14 @@
 
           <div class="dashboard-grid">
             <div class="kpi-card kpi-card-highlight">
+              <p class="kpi-title">profit</p>
+              <p class="best-seller-name" id="branch-profit">0.00</p>
+              <p class="best-seller-sub">Gain or loss after cost and expenses</p>
+            </div>
+            <div class="kpi-card kpi-card-highlight">
               <p class="kpi-title">Cash on Hand</p>
               <p class="best-seller-name" id="branch-cash-on-hand">0.00</p>
-              <p class="best-seller-sub">Sales in, minus expenses and deposits</p>
+              <p class="best-seller-sub">you current money</p>
             </div>
             <div class="kpi-card">
               <p class="kpi-title">Items In Stock</p>
@@ -244,6 +249,14 @@
               <canvas id="sales-trend-chart"></canvas>
             </div>
           </div>
+
+          <div class="chart-card">
+            <p class="chart-title">Employees</p>
+            <ol class="rank-list" id="cash-rank-list"></ol>
+            <p id="cash-rank-empty" class="empty-state hidden">No users assigned to branches yet.</p>
+          </div>
+
+
         </section>
 
         <section id="inventory-view" class="view hidden">
@@ -843,13 +856,17 @@
       <label for="expense-transaction">Transaction</label>
       <input id="expense-transaction" type="text" placeholder="e.g. Bought packaging supplies" required />
 
-      <label for="expense-amount">Amount</label>
+      <<label for="expense-amount">Amount</label>
       <input id="expense-amount" type="number" step="0.01" min="0" placeholder="e.g. 500" required />
+
+      <p class="balance-preview">Remaining Cash on Hand: <strong id="expense-remaining-balance">0.00</strong></p>
+      <p id="expense-balance-error" class="error-msg"></p>
 
       <div class="modal-actions">
         <button type="button" id="cancel-expense-modal" class="btn btn-ghost">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Expense</button>
+        <button type="submit" id="save-expense-btn" class="btn btn-primary">Save Expense</button>
       </div>
+
     </form>
   </div>
 </div>
@@ -879,10 +896,15 @@
       <label for="deposit-amount">Amount</label>
       <input id="deposit-amount" type="number" step="0.01" min="0" placeholder="e.g. 5000" required />
 
+      <p class="balance-preview">Remaining Cash on Hand: <strong id="deposit-remaining-balance">0.00</strong></p>
+      <p id="deposit-balance-error" class="error-msg"></p>
+
       <div class="modal-actions">
         <button type="button" id="cancel-deposit-modal" class="btn btn-ghost">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Deposit</button>
+        <button type="submit" id="save-deposit-btn" class="btn btn-primary">Save Deposit</button>
       </div>
+
+
     </form>
   </div>
 </div>
